@@ -718,6 +718,27 @@ def mask_views(objs, name, masks):
 
 # ---------------------------------------------------------------- main
 
+def lib_material_alpha(name, hex_value, alpha):
+    """A translucent material that survives glTF export.
+
+    glTF carries this as the base colour alpha with an alphaMode of BLEND, so
+    it needs the blend method set on the Blender material as well as the socket
+    value -- setting only the socket exports as opaque."""
+    m = bpy.data.materials.get(name)
+    if m:
+        return m
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = next(n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    rgba = tx.srgb(hex_value, alpha)
+    b.inputs['Base Color'].default_value = rgba
+    b.inputs['Roughness'].default_value = 1.0
+    if 'Alpha' in b.inputs:
+        b.inputs['Alpha'].default_value = alpha
+    m.blend_method = 'BLEND'
+    return m
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     ts.setup()
@@ -734,6 +755,19 @@ def main():
                 print('!! no replacement for material', m.name)
                 continue
             o.data.materials[i] = repl
+
+    # The vapour group is never textured. Baking rebuilds a Principled from
+    # image maps and drops the alpha, which turns translucent smoke into solid
+    # pale cubes over the roofs -- at night, the brightest thing in frame.
+    smoke_objs = [o for o in objs if o.name.startswith('vapour')]
+    for o in smoke_objs:
+        o.data.materials.clear()
+        o.data.materials.append(
+            lib_material_alpha('vapour', 0xCDCEC8, 0.30))
+    objs = [o for o in objs if o not in set(smoke_objs)]
+    if smoke_objs:
+        print('SKIP   %d vapour object(s) left translucent, not baked'
+              % len(smoke_objs))
 
     if not NO_BAKE:
         for o in objs:

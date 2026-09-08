@@ -118,12 +118,56 @@ def lobed(r, seg, lobes=5, depth=0.16, phase=0.0):
     return out
 
 
+# Every stem built for the current piece, as (name, path, radii). A tree is
+# fifty overlapping tubes rather than one welded surface, so "is this branch
+# actually attached to anything?" is a real question that a 900 px render
+# answers badly -- a twig is two pixels wide there, and a 4 cm gap at its root
+# is invisible until it turns up as a floating dash in one heading out of four.
+# audit_joins() below turns it into a number.
+SPINES = []
+
+
 def stem(name, path, radii, seg, section=None, smooth=False):
     """Sweep a tapering section along a path. The whole kit is made of these."""
     r0 = radii[0]
     sect = section(r0, seg) if section else circle(r0, seg)
     scales = [r / r0 for r in radii]
+    SPINES.append((name, [mathutils.Vector(p) for p in path], list(radii)))
     return lib.profile(name, sect, path, close=True, scales=scales, smooth=smooth)
+
+
+def _gap_to(base, path, radii):
+    """How far the point lies outside a stem's surface. Negative means inside."""
+    worst = 1e9
+    for i in range(len(path) - 1):
+        a, b = path[i], path[i + 1]
+        ab = b - a
+        t = max(0.0, min(1.0, (base - a).dot(ab) / max(ab.length_squared, 1e-9)))
+        r = radii[i] + (radii[i + 1] - radii[i]) * t
+        worst = min(worst, (base - (a + ab * t)).length - r)
+    return worst
+
+
+def audit_joins(piece):
+    """Report any stem whose base sits outside every other stem.
+
+    The first stem in the list is the trunk and is allowed to stand on the
+    ground on its own."""
+    bad = []
+    for j, (name, path, radii) in enumerate(SPINES):
+        if j == 0:
+            continue
+        gap = min(_gap_to(path[0], p, r)
+                  for k, (_n, p, r) in enumerate(SPINES) if k != j)
+        if gap > 0.0:
+            bad.append((name, gap))
+    for name, gap in bad:
+        print('   FLOATING  %-18s base is %.3f m clear of every other stem'
+              % (name, gap))
+    if bad:
+        print('   %d of %d stems in %s are not attached to anything'
+              % (len(bad), len(SPINES), piece))
+    return bad
 
 
 def limb(name, p0, az, el, length, r0, r1, seg, stations, rng,
@@ -137,6 +181,12 @@ def limb(name, p0, az, el, length, r0, r1, seg, stations, rng,
     problem. `wob` throws the two interior control points off the plane so no
     branch is a flat arc."""
     p0 = mathutils.Vector(p0)
+    # Elevations are accumulated down the hierarchy -- a riser's secondary's
+    # twig can end up steeper than its parent three times over. Past 90 degrees
+    # cos(el) turns negative and the branch sets off backwards; well before that
+    # it throws a single tip far above the crown and the tree grows a lightning
+    # rod. 78 degrees keeps everything inside the canopy.
+    el = max(math.radians(-78.0), min(math.radians(78.0), el))
     chord = sph(az, el)
     p1 = p0 + chord * length
     d0 = sph(az + rng.uniform(-drift, drift), el + lift_in)
@@ -176,7 +226,7 @@ def noise3(x, y, z):
             + math.sin(x * 13.7 + y * 11.3 - z * 9.1) * 0.18)
 
 
-def lump(name, at, radii, relief=0.26, freq=2.1, seed=0.0, subdiv=1):
+def lump(name, at, radii, relief=0.26, freq=2.1, seed=0.0, subdiv=2):
     """A chunky faceted mass: an evergreen crown lobe, a gorse hummock.
 
     An icosphere squashed and pushed about by `noise3`, so what comes out is an
@@ -277,10 +327,18 @@ def tree_oak_bare(timber, _evergreen):
     parts = []
 
     fork = 3.35
-    trunk_pts = [(0.0, 0.0, 0.0), (0.06, -0.05, 0.30), (0.10, -0.02, 0.85),
-                 (0.05, 0.09, 1.70), (-0.04, 0.11, 2.45),
-                 (-0.09, 0.05, 2.95), (-0.11, 0.02, fork)]
-    trunk_r = [0.455, 0.320, 0.296, 0.276, 0.256, 0.240, 0.226]
+    # The flare is spread over the bottom metre and is concave. A tight one
+    # renders as a cone with a shoulder on it -- a tree in a plant pot.
+    #
+    # The lateral wander runs one way rather than wobbling: `lib.profile` frames
+    # its section against world up, so on a near-vertical path the frame's
+    # azimuth is set by whichever way the tiny horizontal component points, and
+    # a path that wanders +x then -y then +x again spins the section through
+    # half a turn and puts a visible barber-pole of facets up the bole.
+    trunk_pts = [(0.0, 0.0, 0.0), (0.02, -0.01, 0.22), (0.05, -0.03, 0.55),
+                 (0.09, -0.04, 1.05), (0.12, -0.02, 1.75),
+                 (0.13, 0.02, 2.50), (0.12, 0.05, fork)]
+    trunk_r = [0.415, 0.360, 0.320, 0.296, 0.276, 0.252, 0.226]
     parts.append(stem('oak_bole', trunk_pts, trunk_r, 8))
 
     def trunk_at(z):
@@ -297,18 +355,18 @@ def tree_oak_bare(timber, _evergreen):
     kinds = ['rise', 'spread', 'rise', 'spread', 'spread']
     n = 0
     for i, kind in enumerate(kinds):
-        az = i * TAU / 5.0 + rng.uniform(-0.36, 0.36)
-        z0 = 2.62 + 0.17 * i + rng.uniform(-0.10, 0.10)
+        az = i * TAU / 5.0 + rng.uniform(-0.20, 0.20)
+        z0 = 2.15 + 0.30 * i + rng.uniform(-0.10, 0.10)
         p0 = trunk_at(min(z0, fork))
         if kind == 'rise':
-            el = math.radians(rng.uniform(56, 64))
-            length = rng.uniform(4.5, 5.1)
+            el = math.radians(rng.uniform(64, 72))
+            length = rng.uniform(5.3, 5.9)
             lift_in, lift_out = math.radians(10), math.radians(-16)
             r0, r1 = 0.185, 0.085
         else:
-            el = math.radians(rng.uniform(17, 27))
-            length = rng.uniform(3.0, 3.5)
-            lift_in, lift_out = math.radians(30), math.radians(-20)
+            el = math.radians(rng.uniform(-2, 34))
+            length = rng.uniform(3.25, 3.65)
+            lift_in, lift_out = math.radians(36), math.radians(-34)
             r0, r1 = 0.200, 0.090
         prim, path = limb('oak_p%d' % i, p0, az, el, length, r0, r1, 5, 5, rng,
                           lift_in=lift_in, lift_out=lift_out, bow=0.40,
@@ -317,12 +375,23 @@ def tree_oak_bare(timber, _evergreen):
 
         # Three secondaries per primary: two off the shaft, one carrying on
         # from the tip so the limb keeps dividing instead of stopping dead.
-        for j, (f, fan) in enumerate(((0.52, -1.0), (0.78, 1.0), (1.0, 0.0))):
+        for j, (f, fan) in enumerate(((0.48, -1.0), (0.74, 1.0), (0.90, 0.0))):
             s0 = along(path, f)
             s_az = az + fan * rng.uniform(0.42, 0.78) + rng.uniform(-0.14, 0.14)
-            s_el = el + math.radians(rng.uniform(-14, 26) if kind == 'spread'
-                                     else rng.uniform(-24, 10))
-            s_len = rng.uniform(1.75, 2.45) * (1.0 if f < 1.0 else 1.15)
+            # A spreader arches out and its branchlets turn up; a riser goes up
+            # and spreads at the top. Between them that is a domed crown, which
+            # is what an open-grown oak is -- and it puts the growth into height
+            # where the risers are and out of width where the spreaders are,
+            # which is also how the 9 m spread against 11 m of height is held.
+            # Only the secondary at the tip turns sharply up. The two on the
+            # shaft follow their limb, because a limb with ribs standing off it
+            # at a right angle reads as a television aerial.
+            if kind == 'spread':
+                s_el = el + math.radians(rng.uniform(18, 46) if j == 2
+                                         else rng.uniform(-4, 20))
+            else:
+                s_el = el + math.radians(rng.uniform(-34, -4))
+            s_len = rng.uniform(1.35, 1.70) * (1.0 if f < 0.85 else 1.15)
             sec, spath = limb('oak_s%d_%d' % (i, j), s0, s_az, s_el, s_len,
                               0.085, 0.038, 4, 4, rng,
                               lift_in=math.radians(20), lift_out=math.radians(-14),
@@ -331,14 +400,14 @@ def tree_oak_bare(timber, _evergreen):
 
             # Twigs. These are what the silhouette is actually made of: the
             # outline of a bare oak is thirty fine tips, not five heavy limbs.
-            for k, (tf, tfan) in enumerate(((0.60, -1.0), (1.0, 0.55))):
+            for k, (tf, tfan) in enumerate(((0.58, -1.0), (0.93, 0.55))):
                 if n >= 27:
                     break
                 t0 = along(spath, tf)
                 t_az = s_az + tfan * rng.uniform(0.45, 0.95)
-                t_el = s_el + math.radians(rng.uniform(-26, 30))
+                t_el = s_el + math.radians(rng.uniform(-24, 22))
                 tw, _ = limb('oak_t%d_%d_%d' % (i, j, k), t0, t_az, t_el,
-                             rng.uniform(0.95, 1.5), 0.038, 0.016, 3, 3, rng,
+                             rng.uniform(0.78, 1.10), 0.038, 0.016, 3, 3, rng,
                              lift_in=math.radians(16), lift_out=math.radians(-10),
                              bow=0.34, wob=0.13, power=1.0, drift=0.35)
                 parts.append(tw)
@@ -362,33 +431,57 @@ def tree_ash_bare(timber, _evergreen):
     trunk_r = [0.430, 0.312, 0.288, 0.264, 0.240, 0.218, 0.200, 0.185]
     parts.append(stem('ash_bole', trunk_pts, trunk_r, 8))
 
-    top = mathutils.Vector(trunk_pts[-1])
+    def trunk_at(z):
+        for i in range(len(trunk_pts) - 1):
+            a, b = trunk_pts[i], trunk_pts[i + 1]
+            if a[2] <= z <= b[2]:
+                t = (z - a[2]) / max(1e-6, b[2] - a[2])
+                return mathutils.Vector((a[0] + (b[0] - a[0]) * t,
+                                         a[1] + (b[1] - a[1]) * t, z))
+        return mathutils.Vector(trunk_pts[-1])
+
     # One of the four is the leader carrying straight on up. An ash does not
     # fork into equals; it keeps a dominant stem.
-    spec = [(math.radians(78), 5.6, 0.170),
-            (math.radians(58), 4.9, 0.150),
-            (math.radians(54), 4.6, 0.145),
-            (math.radians(62), 4.4, 0.140)]
-    for i, (el, length, r0) in enumerate(spec):
-        az = i * TAU / 4.0 + rng.uniform(-0.30, 0.30)
-        p0 = top - mathutils.Vector((0, 0, rng.uniform(0.0, 0.55)))
-        prim, path = limb('ash_p%d' % i, p0, az, el, length, r0, 0.070, 6, 6, rng,
+    #
+    # The elevations and the departure heights are spread hard on purpose. Four
+    # limbs at 90 degrees leaving one tight whorl silhouette as a tuning fork
+    # from every heading -- two mirror-image halves over a straight pole -- and
+    # that was the first thing wrong with this tree.
+    spec = [(math.radians(80), 5.4, 0.170, 6.05),
+            (math.radians(62), 4.4, 0.150, 4.30),
+            (math.radians(72), 4.6, 0.145, 5.35),
+            (math.radians(58), 4.0, 0.140, 3.90)]
+    for i, (el, length, r0, z0) in enumerate(spec):
+        az = i * TAU / 4.0 + rng.uniform(-0.55, 0.55)
+        p0 = trunk_at(z0)
+        prim, path = limb('ash_p%d' % i, p0, az, el, length, r0, 0.070, 5, 6, rng,
                           lift_in=math.radians(-6), lift_out=math.radians(12),
                           bow=0.38, wob=0.055, power=1.2, drift=0.18)
         parts.append(prim)
 
         # Opposite pairs, at two stations up the limb.
-        for j, f in enumerate((0.46, 0.74)):
+        for j, f in enumerate((0.44, 0.78)):
             s0 = along(path, f)
             for s, side in enumerate((-1.0, 1.0)):
-                s_az = az + side * rng.uniform(0.55, 0.85)
-                s_el = el + math.radians(rng.uniform(-22, -6))
+                # Decussate: successive opposite pairs turn 90 degrees about
+                # the limb, so one pair splits left and right and the next
+                # splits up and down. It is what an ash actually does and it is
+                # also what stops the crown collapsing into a flat fan.
+                if j == 0:
+                    s_az = az + side * rng.uniform(0.55, 0.85)
+                    s_el = el + math.radians(rng.uniform(-22, -6))
+                else:
+                    s_az = az + side * rng.uniform(0.10, 0.28)
+                    s_el = el + side * math.radians(rng.uniform(18, 36))                         - math.radians(8)
                 sec, spath = limb('ash_s%d_%d_%d' % (i, j, s), s0, s_az, s_el,
-                                  rng.uniform(1.5, 2.1), 0.068, 0.030, 4, 5, rng,
+                                  rng.uniform(1.30, 1.75), 0.068, 0.030, 3, 4, rng,
                                   lift_in=math.radians(-4), lift_out=math.radians(20),
                                   bow=0.36, wob=0.09, power=1.1, drift=0.25)
                 parts.append(sec)
-                for k, tf in enumerate((0.58, 1.0)):
+                # Two twigs on the inner pairs, one on the outer, which is
+                # both what the budget allows and how an ash actually ramifies
+                # -- the fine work is on the older wood nearer the stem.
+                for k, tf in enumerate((0.58, 0.93) if j == 0 else (0.93,)):
                     t0 = along(spath, tf)
                     t_az = s_az + rng.uniform(-0.9, 0.9)
                     t_el = s_el + math.radians(rng.uniform(-8, 28))
@@ -400,13 +493,20 @@ def tree_ash_bare(timber, _evergreen):
                     parts.append(tw)
 
         # A tip continuation, so the four limbs do not all stop at one radius.
-        e0 = along(path, 1.0)
-        end, _ = limb('ash_e%d' % i, e0, az + rng.uniform(-0.4, 0.4),
-                      el + math.radians(rng.uniform(-6, 12)),
-                      rng.uniform(1.3, 1.8), 0.068, 0.026, 4, 4, rng,
-                      lift_in=0.0, lift_out=math.radians(22), bow=0.35,
-                      wob=0.08, power=1.1, drift=0.2)
+        e0 = along(path, 0.93)
+        end, epath = limb('ash_e%d' % i, e0, az + rng.uniform(-0.4, 0.4),
+                          el + math.radians(rng.uniform(-6, 12)),
+                          rng.uniform(1.3, 1.8), 0.068, 0.026, 4, 4, rng,
+                          lift_in=0.0, lift_out=math.radians(22), bow=0.35,
+                          wob=0.08, power=1.1, drift=0.2)
         parts.append(end)
+        tw, _ = limb('ash_et%d' % i, along(epath, 0.9),
+                     az + rng.uniform(-0.7, 0.7),
+                     el + math.radians(rng.uniform(-4, 16)),
+                     rng.uniform(0.85, 1.2), 0.026, 0.012, 3, 4, rng,
+                     lift_in=math.radians(-10), lift_out=math.radians(36),
+                     bow=0.34, wob=0.10, power=1.0, drift=0.3)
+        parts.append(tw)
 
     obj = lib.merge_into('tree_ash_bare', parts, mat=timber)
     return obj, 14.0
@@ -418,17 +518,32 @@ def tree_hawthorn(timber, _evergreen):
     north-east away from the south-westerly."""
     rng = random.Random(3313)
     parts = []
-    LEAN, Z0, Z1 = 0.95, 0.45, 4.4
+    # The lean starts just above the ground. Starting it at the crown, which
+    # is what the first version did, shears the top sideways off a vertical
+    # trunk: it reads as storm damage rather than as a tree that has grown
+    # into the wind for two hundred years.
+    LEAN, Z0, Z1 = 1.05, 0.12, 4.4
 
-    bole = [(0.0, 0.0, 0.0), (0.10, 0.07, 0.28), (0.05, -0.09, 0.62),
-            (0.16, 0.04, 1.00), (0.10, 0.10, 1.32)]
-    parts.append(stem('haw_bole', bole, [0.235, 0.180, 0.164, 0.152, 0.142], 6))
+    bole = [(0.0, 0.0, 0.0), (0.11, 0.08, 0.30), (0.04, -0.10, 0.66),
+            (0.18, 0.02, 1.05), (0.12, 0.13, 1.55)]
+    parts.append(stem('haw_bole', bole, [0.235, 0.180, 0.166, 0.154, 0.144], 6))
 
-    top = mathutils.Vector(bole[-1])
+    def bole_at(z):
+        for i in range(len(bole) - 1):
+            a, b = bole[i], bole[i + 1]
+            if a[2] <= z <= b[2]:
+                t = (z - a[2]) / max(1e-6, b[2] - a[2])
+                return mathutils.Vector((a[0] + (b[0] - a[0]) * t,
+                                         a[1] + (b[1] - a[1]) * t, z))
+        return mathutils.Vector(bole[-1])
+
+    # Departure heights staggered over the whole bole, elevations spread from
+    # near horizontal to steep. Six limbs leaving one point at one angle is a
+    # candelabra, which is what this was.
     for i in range(6):
         az = i * TAU / 6.0 + rng.uniform(-0.34, 0.34)
-        el = math.radians(rng.uniform(30, 62))
-        p0 = top - mathutils.Vector((0, 0, rng.uniform(0.0, 0.34)))
+        el = math.radians((18, 58, 34, 66, 26, 48)[i] + rng.uniform(-7, 7))
+        p0 = bole_at(0.82 + 0.145 * i + rng.uniform(-0.05, 0.05))
         prim, path = limb('haw_p%d' % i, p0, az, el, rng.uniform(1.9, 2.6),
                           0.115, 0.052, 4, 5, rng,
                           lift_in=math.radians(26), lift_out=math.radians(-30),
@@ -485,11 +600,11 @@ def tree_yew(timber, evergreen):
 
     # Lobes hung off the tops of the stems and drooping outward, not centred on
     # the axis -- a yew is lopsided and its skirt hangs.
-    lobes = ((0.0, 0.0, 5.15, 2.05, 2.00, 1.65),
-             (1.55, 0.75, 3.75, 1.80, 1.75, 1.30),
-             (-1.35, 1.30, 4.15, 1.65, 1.60, 1.25),
-             (0.35, -1.70, 3.45, 1.75, 1.70, 1.20),
-             (-1.05, -0.95, 5.55, 1.40, 1.35, 1.10))
+    lobes = ((0.15, -0.10, 5.30, 1.95, 1.90, 1.60),
+             (1.70, 0.70, 3.35, 1.75, 1.70, 1.35),
+             (-1.45, 1.35, 4.35, 1.60, 1.55, 1.20),
+             (0.30, -1.85, 2.95, 1.60, 1.55, 1.15),
+             (-1.20, -1.05, 5.60, 1.35, 1.30, 1.05))
     for i, (x, y, z, rx, ry, rz) in enumerate(lobes):
         mass.append(lump('yew_lobe%d' % i, (x, y, z), (rx, ry, rz),
                          relief=0.30, freq=2.3, seed=7.1 * i + 0.6))
@@ -510,11 +625,14 @@ def tree_pine(timber, evergreen):
     rng = random.Random(5171)
     bare, mass = [], []
 
-    trunk_pts = [(0.0, 0.0, 0.0), (0.06, 0.05, 0.42), (0.12, 0.02, 2.10),
-                 (0.14, -0.09, 4.60), (0.06, -0.14, 7.20),
-                 (-0.06, -0.10, 9.80), (-0.16, 0.02, 12.40),
-                 (-0.24, 0.12, 14.60), (-0.28, 0.18, 15.70)]
-    trunk_r = [0.395, 0.300, 0.272, 0.244, 0.216, 0.188, 0.150, 0.110, 0.075]
+    # Sinuous, and stopping under the top plate. A dead straight pole with a
+    # mass on the end of it is a lollipop, which is the one shape the brief
+    # forbids, and a trunk that pokes out through the crown is a nail in a bun.
+    trunk_pts = [(0.0, 0.0, 0.0), (0.10, 0.06, 0.42), (0.34, 0.02, 2.10),
+                 (0.52, -0.22, 4.60), (0.44, -0.42, 7.20),
+                 (0.20, -0.36, 9.80), (-0.10, -0.08, 12.40),
+                 (-0.28, 0.20, 14.10), (-0.34, 0.30, 14.90)]
+    trunk_r = [0.420, 0.318, 0.284, 0.250, 0.218, 0.186, 0.148, 0.108, 0.072]
     bare.append(stem('pine_bole', trunk_pts, trunk_r, 8))
 
     def trunk_at(z):
@@ -528,19 +646,24 @@ def tree_pine(timber, evergreen):
 
     # Dead lower stubs. Short, drooping, and the reason the bare length reads as
     # a trunk that once had branches rather than as a pole.
-    for i in range(7):
-        z = 3.2 + i * 0.92 + rng.uniform(-0.2, 0.2)
+    for i in range(8):
+        z = 2.9 + i * 0.82 + rng.uniform(-0.2, 0.2)
         s, _ = limb('pine_d%d' % i, trunk_at(z), rng.uniform(0, TAU),
-                    math.radians(rng.uniform(-24, -6)), rng.uniform(0.6, 1.15),
-                    0.055, 0.020, 3, 3, rng, lift_in=math.radians(16),
-                    lift_out=math.radians(-16), bow=0.35, wob=0.12, power=1.0)
+                    math.radians(rng.uniform(-30, -8)), rng.uniform(0.85, 1.5),
+                    0.062, 0.022, 3, 3, rng, lift_in=math.radians(20),
+                    lift_out=math.radians(-22), bow=0.35, wob=0.12, power=1.0)
         bare.append(s)
 
-    plates = ((10.55, 2.55, 0.52, 0.42, -0.30),
-              (11.85, 2.35, 0.48, -0.55, 0.30),
-              (13.05, 1.95, 0.44, 0.30, 0.50),
-              (14.15, 1.45, 0.40, -0.25, -0.35),
-              (15.20, 0.95, 0.36, 0.15, 0.10))
+    # Flat, well separated and thrown off the axis. The first version had
+    # `flat` at about 0.5, so every plate was half as deep as it was wide and
+    # the five of them merged into one ball on a stick. What makes a Scots pine
+    # read at 280 m is the sky between the tiers.
+    plates = ((10.30, 2.05, 0.22, 0.70, -0.50),
+              (11.50, 2.25, 0.21, -0.85, 0.40),
+              (12.55, 1.90, 0.22, 0.50, 0.75),
+              (13.55, 2.10, 0.20, -0.55, -0.60),
+              (14.40, 1.55, 0.21, 0.45, 0.30),
+              (15.05, 1.70, 0.22, -0.30, 0.15))
     for i, (z, r, flat, ox, oy) in enumerate(plates):
         base = trunk_at(z)
         cx, cy = base.x + ox, base.y + oy
@@ -570,14 +693,18 @@ def scrub_gorse(timber, evergreen):
     no visible stem."""
     rng = random.Random(6899)
     parts = []
-    blobs = ((0.0, 0.0, 0.52, 0.62, 0.58, 0.54),
-             (0.42, 0.26, 0.40, 0.46, 0.44, 0.40),
-             (-0.34, 0.30, 0.36, 0.40, 0.42, 0.36),
-             (0.06, -0.40, 0.44, 0.44, 0.40, 0.44))
-    for i, (x, y, z, rx, ry, rz) in enumerate(blobs):
+    # One 42-vertex mass and two 12-vertex ones. At 20 faces each the first
+    # version was a crystal -- huge flat planes and sharp arrises, which is
+    # what the rock kit in group 2 is meant to look like and is exactly wrong
+    # standing next to it. The relief is gentler too: a gorse hummock is bumpy,
+    # not spiky.
+    blobs = ((0.0, 0.0, 0.50, 0.56, 0.52, 0.50, 2, 0.22),
+             (0.34, 0.22, 0.36, 0.38, 0.36, 0.34, 1, 0.26),
+             (-0.28, -0.26, 0.32, 0.34, 0.36, 0.30, 1, 0.26))
+    for i, (x, y, z, rx, ry, rz, sub_, rel) in enumerate(blobs):
         parts.append(lump('gorse%d' % i, (x, y, z), (rx, ry, rz),
-                          relief=0.34, freq=2.6, seed=5.7 * i + 2.3, subdiv=0))
-    rng.random()
+                          relief=rel, freq=2.2, seed=5.7 * i + 2.3,
+                          subdiv=sub_))
     obj = lib.merge_into('scrub_gorse', parts, mat=evergreen)
     return obj, 1.2
 
@@ -596,15 +723,15 @@ def deadfall(timber, _evergreen):
     outline = []
     for i in range(10):
         a = i / 10.0 * TAU
-        r = 0.98 * (1.0 + 0.30 * math.sin(a * 3.0 + 0.7) + 0.16 * math.sin(a * 5.0))
-        outline.append((math.sin(a) * r, 0.90 + math.cos(a) * r * 0.92))
+        r = 0.74 * (1.0 + 0.32 * math.sin(a * 3.0 + 0.7) + 0.18 * math.sin(a * 5.0))
+        outline.append((math.sin(a) * r, 0.60 + math.cos(a) * r * 0.95))
     outline = [(y, max(0.03, z)) for (y, z) in outline]
-    parts.append(lib.prism('dead_plate', outline, 0.26,
-                           loc=(-2.62, 0.0, 0.0), plane='yz'))
+    parts.append(lib.prism('dead_plate', outline, 0.22,
+                           loc=(-2.58, 0.0, 0.0), plane='yz'))
 
     for i, (f, az, el, length) in enumerate(
-            ((0.22, 1.5, 0.65, 1.35), (0.48, -1.9, 0.50, 1.15),
-             (0.72, 2.6, 0.30, 0.95), (0.90, -0.9, 0.75, 0.80))):
+            ((0.20, 1.35, 0.95, 1.45), (0.44, -1.75, 0.70, 1.25),
+             (0.66, 2.45, 1.05, 1.05), (0.88, -0.75, 0.85, 0.90))):
         p0 = along(log, f)
         s, _ = limb('dead_s%d' % i, p0, az, el, length, 0.105, 0.042, 4, 3, rng,
                     lift_in=math.radians(12), lift_out=math.radians(-24),
@@ -650,6 +777,7 @@ def main():
                              % (name, ', '.join(sorted(PIECES))))
         fn, budget = PIECES[name]
         lib.reset()
+        del SPINES[:]
         timber, evergreen = palette()
         obj, target_h = fn(timber, evergreen)
         k = fit_height(obj, target_h) if target_h else 1.0
@@ -663,8 +791,9 @@ def main():
               'crown/height %.2f   fit x%.3f'
               % (name, t, budget, t - budget, height, spread,
                  spread / max(height, 1e-6), k))
-        if spread > 1.1 * height:
+        if spread > 1.1 * height and name not in ('scrub_gorse', 'deadfall'):
             print('   WARNING crown is wider than 1.1x the height')
+        audit_joins(name)
         lib.export(name, report)
     lib.summarise(report)
     print('=== group 1 ===')

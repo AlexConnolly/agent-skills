@@ -39,7 +39,7 @@ import sys
 import math
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(HERE, 'art'))
+sys.path.append(os.path.join(HERE, 'art_lights'))
 
 import artconfig as cfg      # noqa: E402
 import lib                   # noqa: E402
@@ -103,29 +103,53 @@ def shard(name, base, h, r, lean, bearing, mat, segments=4, tip=0.008):
                          segments=segments), mat)
 
 
-def fire_bed(name, r1, r2, h, at, mats, segments=8):
-    """The hot heart. `fire-core` is the only colour in the whole scene allowed
-    to be bright, and it lives here and in the bonfire and nowhere else."""
-    return paint(lib.cyl(name, r1, r2, h, loc=(at[0], at[1], at[2] + h / 2),
-                         segments=segments), mats['core'])
+def fire_bed(name, r, h, at, mats, seed=0, slabs=3):
+    """The hot heart, as a cluster of overlapping slabs rather than a disc.
+
+    An emissive surface does not shade -- every face of it renders the same
+    value whichever way it points -- so the only things that read on a bed of
+    `fire-core` are its OUTLINE and whatever dark geometry bites into it. Pass
+    one made this a flat-topped cylinder and it came back from the render as a
+    plate of cream sitting in a black bowl, in all three fires at once.
+
+    Overlapping slabs at three bearings give a broken edge for nothing; sinking
+    the bed below the rim of the thing that holds it gives the dark a bite; and
+    the ember lumps take the rest of the bright area away."""
+    import random
+    rng = random.Random(seed)
+    out = []
+    for i in range(slabs):
+        a = rng.uniform(0, TAU)
+        d = r * rng.uniform(0.0, 0.36)
+        s = rng.uniform(0.74, 1.0)
+        out.append(paint(lib.box('%s%d' % (name, i),
+                                 (r * 1.72 * s, r * 1.26 * s,
+                                  h * rng.uniform(0.68, 1.0)),
+                                 loc=(at[0] + math.cos(a) * d,
+                                      at[1] + math.sin(a) * d,
+                                      at[2] + h / 2),
+                                 rot=(0, 0, rng.uniform(0, TAU))),
+                         mats['core']))
+    return out
 
 
-def embers(name, at, spread, n, mats, seed=0):
-    """Coals sitting in the bed: the deepest warm step, and what stops the bed
-    reading as a flat disc of light."""
+def embers(name, at, spread, n, mats, seed=0, size=1.0):
+    """Coals sitting proud on the bed: the deepest warm step, and -- more
+    usefully -- the dark-ish lumps that break the bright shape up."""
     import random
     rng = random.Random(seed)
     out = []
     for i in range(n):
         a = rng.uniform(0, TAU)
-        d = spread * math.sqrt(rng.uniform(0.05, 1.0))
-        s = rng.uniform(0.55, 1.0)
+        d = spread * math.sqrt(rng.uniform(0.10, 1.0))
+        s = rng.uniform(0.62, 1.0) * size
         out.append(paint(lib.box('%s%d' % (name, i),
-                                 (0.13 * s, 0.10 * s, 0.07 * s),
+                                 (0.19 * s, 0.14 * s, 0.10 * s),
                                  loc=(at[0] + math.cos(a) * d,
                                       at[1] + math.sin(a) * d,
                                       at[2] + 0.02 * s),
-                                 rot=(0, 0, rng.uniform(0, TAU))),
+                                 rot=(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3),
+                                      rng.uniform(0, TAU))),
                          mats['ember']))
     return out
 
@@ -139,41 +163,51 @@ def brazier(mats):
     somebody refills. Three splayed legs, a stretcher hoop, a shallow pan, six
     bars and a heavy rim, and two brightnesses of fire inside it."""
     out = []
-    foot_r, top_r = 0.26, 0.145
-    leg_h = 0.60
+    foot_r, top_r = 0.255, 0.140
+    leg_h = 0.585
+    r_leg = 0.034
     lean = math.atan2(foot_r - top_r, leg_h)
     span = math.hypot(foot_r - top_r, leg_h)
     for i in range(3):
         a = i / 3.0 * TAU + math.radians(30)
         r_mid = (foot_r + top_r) / 2
         # -lean tilts the head of the leg inward, so the feet splay outward.
-        out.append(paint(lib.cyl('brz_leg%d' % i, 0.030, 0.022, span,
+        # The z is solved, not guessed: the lowest cap vertex of a cone tilted
+        # by `lean` sits half a span plus r*sin(lean) below its centre, and the
+        # first pass put the feet a centimetre through the floor.
+        out.append(paint(lib.cyl('brz_leg%d' % i, r_leg, 0.024, span,
                                  loc=(math.cos(a) * r_mid, math.sin(a) * r_mid,
-                                      leg_h / 2),
+                                      span / 2 * math.cos(lean)
+                                      + r_leg * math.sin(lean)),
                                  rot=(0.0, -lean, a), segments=4), mats['iron']))
-    out.append(paint(lib.ring('brz_stretcher', 0.185, 0.215, 0.028,
-                              loc=(0, 0, 0.20), segments=6), mats['iron']))
-    # A shallow pan. Its top cap is solid and sits under the bed, so nothing is
-    # lost to it and the ring of iron showing round the fire reads as the pan.
-    out.append(paint(lib.cyl('brz_pan', 0.170, 0.290, 0.20, loc=(0, 0, 0.70),
+    out.append(paint(lib.ring('brz_stretcher', 0.170, 0.203, 0.030,
+                              loc=(0, 0, 0.265), segments=6), mats['iron']))
+    # A SHALLOW pan -- pass one made this 0.20 deep with a hard taper and it
+    # photographed as a barbecue kettle. Its top cap is solid and sits under
+    # the bed, so nothing is lost to it.
+    out.append(paint(lib.cyl('brz_pan', 0.225, 0.292, 0.135, loc=(0, 0, 0.655),
                              segments=8), mats['iron']))
-    out.append(paint(lib.ring('brz_rim', 0.278, 0.310, 0.055, loc=(0, 0, 0.815),
-                              segments=8), mats['iron']))
+    # Basket: bars between the pan and a heavy rim hoop that CAPS them. Pass
+    # one hung the hoop below the bar tops and the bars read as loose skewers
+    # stuck round the edge of a barbecue.
     for i in range(6):
         a = i / 6.0 * TAU
-        out.append(paint(lib.box('brz_bar%d' % i, (0.030, 0.030, 0.19),
-                                 loc=(math.cos(a) * 0.295, math.sin(a) * 0.295,
-                                      0.885),
-                                 rot=(0.0, -0.16, a)), mats['iron']))
-    out.append(fire_bed('brz_bed', 0.235, 0.200, 0.075, (0, 0, 0.760), mats))
-    out += embers('brz_ember', (0, 0, 0.822), 0.13, 3, mats, seed=11)
+        out.append(paint(lib.box('brz_bar%d' % i, (0.032, 0.032, 0.150),
+                                 loc=(math.cos(a) * 0.294, math.sin(a) * 0.294,
+                                      0.795),
+                                 rot=(0.0, -0.05, a)), mats['iron']))
+    out.append(paint(lib.ring('brz_rim', 0.278, 0.312, 0.048, loc=(0, 0, 0.862),
+                              segments=8), mats['iron']))
+    # The bed sits BELOW the rim, so the hoop and the bars cut across it.
+    out += fire_bed('brz_bed', 0.148, 0.072, (0, 0, 0.706), mats, seed=5)
+    out += embers('brz_ember', (0, 0, 0.769), 0.120, 4, mats, seed=11, size=0.68)
     for i, (h, r, ln, bg) in enumerate((
-            (0.30, 0.075, 0.16, 0.4), (0.24, 0.060, 0.26, 2.6),
-            (0.19, 0.055, 0.12, 4.5), (0.26, 0.065, 0.21, 5.6),
-            (0.15, 0.048, 0.30, 1.6))):
-        d = 0.075 if i % 2 else 0.045
+            (0.315, 0.072, 0.10, 0.35), (0.205, 0.055, 0.44, 2.55),
+            (0.145, 0.046, 0.20, 4.60), (0.265, 0.063, 0.31, 5.65),
+            (0.110, 0.040, 0.52, 1.70), (0.185, 0.050, 0.14, 3.55))):
+        d = (0.085, 0.030, 0.100, 0.055, 0.110, 0.070)[i]
         out.append(shard('brz_flame%d' % i,
-                         (math.cos(bg + 1.0) * d, math.sin(bg + 1.0) * d, 0.800),
+                         (math.cos(bg + 1.0) * d, math.sin(bg + 1.0) * d, 0.775),
                          h, r, ln, bg, mats['flame']))
     return out
 
@@ -190,38 +224,55 @@ def bonfire(mats):
     out = []
     import random
     rng = random.Random(7)
-    for i in range(9):
-        a = i / 9.0 * TAU
-        w = rng.uniform(0.34, 0.48)
-        d = rng.uniform(0.24, 0.34)
-        h = rng.uniform(0.22, 0.34)
-        r = 1.10 - d / 2
+    # Eleven stones, close enough together to be a RING. Pass one used nine at
+    # radius 1.10 and they read as boxes dropped on the floor round a fire
+    # rather than a kerb somebody laid.
+    for i in range(11):
+        a = i / 11.0 * TAU
+        w = rng.uniform(0.44, 0.60)
+        d = rng.uniform(0.26, 0.36)
+        h = rng.uniform(0.24, 0.38)
+        r = 1.22 - d / 2
         out.append(paint(lib.box('bnf_stone%d' % i, (d, w, h),
                                  loc=(math.cos(a) * r, math.sin(a) * r, h / 2),
-                                 rot=(0, 0, a + rng.uniform(-0.25, 0.25))),
+                                 rot=(0, 0, a + rng.uniform(-0.22, 0.22))),
                          mats['stone']))
-    # Nine logs, crossed. Two lengths and two heights so the stack has a top
-    # and a bottom rather than reading as a bundle.
-    for i in range(9):
-        a = i / 9.0 * TAU + 0.35
-        length = rng.uniform(1.25, 1.70)
-        tilt = rng.uniform(0.85, 1.20)      # from vertical: nearly lying down
-        z0 = rng.uniform(0.10, 0.34)
-        rad = rng.uniform(0.062, 0.095)
-        out.append(shard('bnf_log%d' % i, (math.cos(a) * 0.78,
-                                           math.sin(a) * 0.78, z0),
-                         length, rad, tilt, a + math.pi, mats['timber'],
-                         segments=5, tip=rad * 0.82))
-    out.append(fire_bed('bnf_bed', 0.80, 0.62, 0.26, (0, 0, 0.12), mats,
-                        segments=10))
-    out += embers('bnf_ember', (0, 0, 0.38), 0.55, 5, mats, seed=23)
+    # Eight logs standing off the kerb and crossing OVER the fire, their tips
+    # gathering around a metre up. Pass one laid them nearly flat and they flew
+    # out past the ring like a cheval de frise; pass two stood them on a tight
+    # circle and they converged to a point like a black starburst. The fix is
+    # to move the FEET out to the kerb, so the sticks cross the bright bed
+    # instead of radiating from it, and to scatter where the tips arrive.
+    for i in range(8):
+        a = i / 8.0 * TAU + 0.35
+        foot = rng.uniform(0.88, 1.02)
+        rise = rng.uniform(0.80, 1.05)
+        z0 = rng.uniform(0.06, 0.20)
+        rad = rng.uniform(0.058, 0.090)
+        out.append(shard('bnf_log%d' % i, (math.cos(a) * foot,
+                                           math.sin(a) * foot, z0),
+                         math.hypot(foot, rise), rad, math.atan2(foot, rise),
+                         a + math.pi, mats['timber'],
+                         segments=5, tip=rad * 0.80))
+    # Two big logs lying across it, which is what a fire somebody feeds looks
+    # like and which puts a dark bar over the middle of the bright bed.
+    for i, (a, ln) in enumerate(((0.55, 1.95), (3.05, 1.75))):
+        out.append(shard('bnf_baulk%d' % i,
+                         (math.cos(a) * ln / 2, math.sin(a) * ln / 2, 0.30),
+                         ln, 0.105, 1.44, a + math.pi, mats['timber'],
+                         segments=5, tip=0.085))
+    # High enough to clear the kerb -- the hero camera looks slightly UP at
+    # this fire from ninety metres, so a bed down among the stones is a bed
+    # nobody ever sees.
+    out += fire_bed('bnf_bed', 0.44, 0.26, (0, 0, 0.24), mats, seed=13)
+    out += embers('bnf_ember', (0, 0, 0.470), 0.40, 6, mats, seed=23, size=1.7)
     for i, (h, r, ln, bg) in enumerate((
-            (0.95, 0.20, 0.14, 0.9), (0.72, 0.17, 0.28, 2.4),
-            (1.02, 0.19, 0.09, 4.0), (0.60, 0.15, 0.31, 5.3),
-            (0.80, 0.16, 0.20, 3.1), (0.52, 0.13, 0.36, 1.7))):
-        d = 0.36 if i % 2 else 0.20
+            (0.86, 0.19, 0.10, 0.90), (0.58, 0.15, 0.42, 2.40),
+            (0.92, 0.18, 0.06, 4.05), (0.48, 0.13, 0.48, 5.30),
+            (0.72, 0.16, 0.24, 3.10), (0.38, 0.11, 0.56, 1.70))):
+        d = (0.14, 0.30, 0.08, 0.34, 0.21, 0.38)[i]
         out.append(shard('bnf_flame%d' % i,
-                         (math.cos(bg + 0.7) * d, math.sin(bg + 0.7) * d, 0.38),
+                         (math.cos(bg + 0.7) * d, math.sin(bg + 0.7) * d, 0.470),
                          h, r, ln, bg, mats['flame'], segments=5))
     return out
 
@@ -240,15 +291,24 @@ def lantern(mats):
     for sx in (-1, 1):
         for sy in (-1, 1):
             out.append(paint(lib.box('ltn_post%d%d' % (sx > 0, sy > 0),
-                                     (0.024, 0.024, 0.222),
-                                     loc=(sx * 0.088, sy * 0.088, 0.137)),
+                                     (0.032, 0.032, 0.222),
+                                     loc=(sx * 0.084, sy * 0.084, 0.137)),
                              mats['iron']))
     # Horn, not glass: set inside the frame, and the only emissive part.
+    #
+    # Pass one gave the panes 0.146 of a 0.20 frame and it photographed as a
+    # glazed box -- exactly the modern lantern the brief forbids. Narrower
+    # panes, heavier corner posts, and a mid-rail across each pane: the rail is
+    # what says a sheet of scraped horn pegged into ironwork.
     for k, (sx, sy) in enumerate(((0, -1), (0, 1), (-1, 0), (1, 0))):
-        size = (0.146, 0.010, 0.186) if sy else (0.010, 0.146, 0.186)
+        size = (0.118, 0.010, 0.186) if sy else (0.010, 0.118, 0.186)
         out.append(paint(lib.box('ltn_pane%d' % k, size,
                                  loc=(sx * 0.086, sy * 0.086, 0.137)),
                          mats['tallow']))
+        rail = (0.132, 0.011, 0.017) if sy else (0.011, 0.132, 0.017)
+        out.append(paint(lib.box('ltn_rail%d' % k, rail,
+                                 loc=(sx * 0.092, sy * 0.092, 0.148)),
+                         mats['iron']))
     out.append(paint(lib.box('ltn_cap', (0.224, 0.224, 0.056), loc=(0, 0, 0.276),
                              taper=0.26), mats['iron']))
     out.append(paint(lib.box('ltn_vent', (0.038, 0.038, 0.030), loc=(0, 0, 0.311)),
@@ -282,14 +342,18 @@ def cresset(mats):
                              segments=8), mats['iron'])
     bowl.location = (0.0, -0.235, 0.280)
     out.append(bowl)
-    out.append(fire_bed('crs_bed', 0.130, 0.108, 0.050, (0, -0.235, 0.392),
-                        mats, segments=6))
-    for i, (h, r, ln, bg) in enumerate(((0.106, 0.045, 0.14, 0.5),
-                                        (0.082, 0.038, 0.30, 2.9),
-                                        (0.094, 0.040, 0.22, 4.7))):
+    # Sunk into the bowl, not filling it: pass one made this a flat disc the
+    # full width of the rim and the cresset photographed as a bowl of custard.
+    out += fire_bed('crs_bed', 0.076, 0.044, (0, -0.235, 0.348), mats, seed=3)
+    out += embers('crs_ember', (0, -0.235, 0.382), 0.052, 3, mats, seed=31,
+                  size=0.32)
+    for i, (h, r, ln, bg) in enumerate(((0.118, 0.044, 0.12, 0.5),
+                                        (0.076, 0.034, 0.50, 2.9),
+                                        (0.096, 0.038, 0.28, 4.7),
+                                        (0.058, 0.028, 0.62, 1.6))):
         out.append(shard('crs_flame%d' % i,
-                         (-math.cos(bg) * 0.045, -0.235 + math.sin(bg) * 0.045,
-                          0.420),
+                         (-math.cos(bg) * 0.042, -0.235 + math.sin(bg) * 0.042,
+                          0.402),
                          h, r, ln, bg, mats['flame'], segments=3))
     return out
 
@@ -306,10 +370,17 @@ def lamp_post(mats):
                              chamfer=0.014), mats['timber']))
     out.append(paint(lib.box('lmp_strap', (0.176, 0.176, 0.050),
                              loc=(0, 0, 1.92)), mats['iron']))
-    out.append(paint(lib.box('lmp_arm', (0.046, 0.300, 0.046),
-                             loc=(0, -0.130, 2.260)), mats['iron']))
-    out.append(paint(lib.box('lmp_hook', (0.036, 0.036, 0.110),
-                             loc=(0, -0.262, 2.205)), mats['iron']))
+    # Arm, brace and an UPTURNED hook. Pass one had a bare horizontal bar with
+    # a stub hanging off it and the head of the post read as a tap.
+    out.append(paint(lib.box('lmp_arm', (0.046, 0.420, 0.046),
+                             loc=(0, -0.190, 2.270)), mats['iron']))
+    out.append(paint(lib.box('lmp_brace', (0.032, 0.032, 0.280),
+                             loc=(0, -0.150, 2.100), rot=(0.87, 0, 0)),
+                     mats['iron']))
+    out.append(paint(lib.box('lmp_hook', (0.032, 0.032, 0.135),
+                             loc=(0, -0.375, 2.210)), mats['iron']))
+    out.append(paint(lib.box('lmp_hooktip', (0.030, 0.070, 0.030),
+                             loc=(0, -0.348, 2.158)), mats['iron']))
     out.append(paint(lib.box('lmp_cap', (0.208, 0.208, 0.060), loc=(0, 0, 2.370),
                              taper=0.55), mats['iron']))
     return out
@@ -317,65 +388,125 @@ def lamp_post(mats):
 
 # ---------------------------------------------------------------- plumes
 
-def plume(mats, name, height, width, points, straight=0.62, bend_deg=30.0,
-          throat=0.50, flatten=0.55):
+def plume(mats, name, height, width, points, straight=0.45, bend_deg=30.0,
+          throat=0.50, flatten=0.58, lean_deg=4.0, fade=0.14):
     """A smoke column. `lib.sweep`, not `profile`, because the section has to
-    change shape and not only size: a plume on a clear cold night rises, hits
+    change SHAPE and not only size: a plume on a clear cold night rises, meets
     the inversion, and flattens into an ellipse rather than going on climbing.
 
     Rises near vertical for `straight` of its height, then bends `bend_deg` off
     vertical and drifts north-east -- the same south-west wind that leans the
     hawthorns and the keep banner. Widens from a chimney-sized `throat` to the
-    full width. No emission at all: it is lit by the moon behind it and the
-    fires under it."""
+    full width. No emission at all: it is lit by the moon behind it and by the
+    fires underneath it.
+
+    Three things here are fixes, and each one has a render behind it:
+
+    `lean_deg` is not decoration. `lib.sweep` frames each section against world
+    up, so a path that is EXACTLY vertical makes the cross product degenerate
+    and the framing falls back to an arbitrary axis; the moment the path tilts,
+    the frame swings 45 degrees between two consecutive rings and puts a hard
+    pinch in the column. Pass one had a visible bright kink at a third height
+    in both plumes for exactly that reason. A four-degree lean from the flue --
+    which is true of any real plume anyway -- keeps the frame continuous.
+
+    smooth=False because `lib.sweep` defaults to smooth shading whatever
+    SMOOTH_DEFAULT says, and a smooth-shaded 8-sided tube photographed as a
+    bent rubber sleeve. The art direction asks for faceted, and faceted is also
+    what makes it read as vapour rather than a solid.
+
+    close=False because a capped tube has an end, and smoke does not. The
+    bottom sits inside the chimney, and over the last `fade` of the path the
+    section shrinks away so the top pinches out instead of being chopped off
+    flat -- pass two ended on a full-width open ring and the render showed a
+    column that had been cut through with a knife."""
     drift = (math.cos(math.radians(45)), math.sin(math.radians(45)))   # NE
+    theta_0 = math.radians(lean_deg)
     theta_max = math.radians(bend_deg)
 
     def theta(t):
-        u = (t - straight * 0.72) / (1.0 - straight * 0.72)
+        u = (t - straight) / (0.92 - straight)
         u = min(1.0, max(0.0, u))
-        return theta_max * (u * u * (3 - 2 * u))          # smoothstep
+        return theta_0 + (theta_max - theta_0) * (u * u * (3 - 2 * u))
 
+    # The section is a flattened ellipse, so at the mouth its own half-depth
+    # hangs below the first path point once the path leans. Lift the whole
+    # thing by exactly that, or the export report calls a 2 cm rim a sunk model.
+    z0 = (throat / 2.0) * math.sin(theta_0)
     path, sections = [], []
     s = 0.0
     prev_z = 0.0
     for i in range(points):
         t = i / (points - 1.0)
-        z = height * t
+        z = height * t + z0
         s += math.tan(theta(t)) * (z - prev_z)
         prev_z = z
         path.append((drift[0] * s, drift[1] * s, z))
-        w = throat + (width - throat) * (t ** 0.72)
+        # t**0.55, not t**0.72: the first pass expanded late and the column
+        # came out as a narrow stalk under a fat bulb -- a thumb, not smoke.
+        w = throat + (width - throat) * (t ** 0.55)
+        if t > 1.0 - fade:
+            u = (t - (1.0 - fade)) / fade
+            w *= 1.0 - 0.62 * u * u
         a = w / 2.0
-        b = a * (1.0 - (1.0 - flatten) * (t ** 1.4))
+        b = a * (1.0 - (1.0 - flatten) * (t ** 1.1))
         sections.append([(math.cos(k / 8.0 * TAU) * a,
                           math.sin(k / 8.0 * TAU) * b) for k in range(8)])
-    return [paint(lib.sweep(name, path, sections, close=True), mats['vapour'])]
+    return [paint(lib.sweep(name, path, sections, close=False, smooth=False),
+                  mats['vapour'])]
 
 
 # ---------------------------------------------------------------- lit openings
 
-def pane(mats, name, w, t, h, mat='tallow'):
+def pane(mats, name, w, t, h, mat='tallow', mullions=0, transom=None,
+         bar='stone', bw=0.085):
     """A lit opening plate. Thin in Y, emitting toward -Y, base on z = 0.
 
     Twelve triangles and one of the three most important assets in the scene:
     it is the difference between a black hole in a wall and a room with people
-    in it."""
-    return [paint(lib.box(name, (w, t, h), loc=(0, 0, h / 2)), mats[mat])]
+    in it.
+
+    The mullion is not decoration and it is not optional on the wide ones. Put
+    the whole kit in one frame at the intensities of ART-DIRECTION 3.6 and the
+    lit windows out-glow the bonfire, because a 1.40 x 2.10 plate at 1.6 is
+    2.9 square metres of light against maybe 0.3 for the heart of the fire --
+    area beats intensity. A dark stone mullion and transom across it takes back
+    a fifth of the bright area, breaks a flat rectangle into four lights, and
+    is what a two-light window in a thirteenth-century keep actually is. The
+    same trick as the lantern's mid-rail, and it works for the same reason."""
+    out = [paint(lib.box(name, (w, t, h), loc=(0, 0, h / 2)), mats[mat])]
+    for i in range(mullions):
+        x = w * ((i + 1) / float(mullions + 1) - 0.5)
+        out.append(paint(lib.box('%s_mull%d' % (name, i), (bw, t + 0.05, h),
+                                 loc=(x, -0.020, h / 2)), mats[bar]))
+    if transom:
+        out.append(paint(lib.box('%s_tran' % name, (w, t + 0.05, bw * 0.85),
+                                 loc=(0, -0.020, h * transom)), mats[bar]))
+    return out
+
+
+def arch_plate(name, w, h, t, mat, spring=0.62, steps=6):
+    """A round-headed opening: straight jambs to the springing, then a
+    semicircle. `spring` is the fraction of the height the arch starts at.
+
+    A rectangle where an arch belongs reads as a letterbox cut in a wall, and
+    both the places this is used -- an oven mouth and the far end of a barrel-
+    vaulted gate passage -- are arches in the castle it has to sit against."""
+    hw = w / 2.0
+    z_spring = h * spring
+    outline = [(-hw, 0.0), (hw, 0.0), (hw, z_spring)]
+    for k in range(1, steps):
+        a = k / float(steps) * math.pi
+        outline.append((hw * math.cos(a), z_spring + (h - z_spring) * math.sin(a)))
+    outline.append((-hw, z_spring))
+    return [paint(lib.prism(name, outline, t, plane='xz'), mat)]
 
 
 def oven_mouth(mats):
     """The bake-house oven's round-headed mouth, 0.55 by 0.70, in `ember` --
-    the deepest warm step, and the only source in the scene that is not tallow
-    or fire. A rectangle would read as a letterbox; the arch is what says oven."""
-    hw, spring, apex = 0.275, 0.425, 0.700
-    outline = [(-hw, 0.0), (hw, 0.0), (hw, spring)]
-    for k in range(1, 7):
-        a = k / 6.0 * math.pi
-        outline.append((hw * math.cos(a), spring + (apex - spring) * math.sin(a)))
-    outline.append((-hw, spring))
-    return [paint(lib.prism('oven_mouth', outline, 0.060, plane='xz'),
-                  mats['ember'])]
+    the deepest warm step, and the only source in the scene that is neither
+    tallow nor fire."""
+    return arch_plate('oven_mouth', 0.550, 0.700, 0.060, mats['ember'])
 
 
 def shutter(mats):
@@ -388,15 +519,22 @@ def shutter(mats):
     in. Four boards with real gaps between them, two ledges behind, two strap
     hinges in front."""
     out = []
+    # 22 mm gaps and alternating thickness, because pass one used 10 mm and the
+    # four boards photographed as one slab with scored lines on it. A shutter
+    # that reads has light coming between the boards.
     for i in range(4):
-        out.append(paint(lib.box('sht_board%d' % i, (0.170, 0.026, 2.100),
-                                 loc=(0.090 + i * 0.180, 0.007, 1.050)),
+        t = 0.030 if i % 2 else 0.024
+        out.append(paint(lib.box('sht_board%d' % i, (0.158, t, 2.100),
+                                 loc=(0.090 + i * 0.180, 0.006 + t / 2 - 0.012,
+                                      1.050)),
                          mats['timber']))
-    for k, z in enumerate((0.360, 1.740)):
-        out.append(paint(lib.box('sht_ledge%d' % k, (0.706, 0.018, 0.140),
-                                 loc=(0.358, 0.029, z)), mats['timber']))
-        out.append(paint(lib.box('sht_strap%d' % k, (0.400, 0.010, 0.055),
-                                 loc=(0.200, -0.011, z)), mats['iron']))
+    for k, z in enumerate((0.330, 1.760)):
+        out.append(paint(lib.box('sht_ledge%d' % k, (0.706, 0.026, 0.155),
+                                 loc=(0.358, 0.034, z)), mats['timber']))
+        out.append(paint(lib.box('sht_strap%d' % k, (0.480, 0.014, 0.070),
+                                 loc=(0.240, -0.014, z)), mats['iron']))
+        out.append(paint(lib.box('sht_pintle%d' % k, (0.052, 0.052, 0.105),
+                                 loc=(0.006, -0.014, z)), mats['iron']))
     return out
 
 
@@ -410,11 +548,19 @@ PIECES = {
     'lamp_post': lamp_post,
     'plume_tall': lambda m: plume(m, 'plume_tall', 13.0, 2.50, 24),
     'plume_low': lambda m: plume(m, 'plume_low', 8.0, 1.80, 18),
-    'pane_window': lambda m: pane(m, 'pane_window', 1.40, 0.06, 2.10),
-    'pane_hall': lambda m: pane(m, 'pane_hall', 1.05, 0.10, 1.40),
+    # Two lights and a transom on the keep windows, two lights on the hall and
+    # the chapel, a bare slit on the arrow loop, and a round head on the
+    # passage -- which is not a window at all but the far end of a barrel
+    # vault seen down a dark tunnel.
+    'pane_window': lambda m: pane(m, 'pane_window', 1.40, 0.06, 2.10,
+                                  mullions=1, transom=0.66),
+    'pane_hall': lambda m: pane(m, 'pane_hall', 1.05, 0.10, 1.40,
+                                mullions=1, bar='timber', bw=0.070),
     'pane_loop': lambda m: pane(m, 'pane_loop', 0.28, 0.06, 1.45),
-    'pane_lancet': lambda m: pane(m, 'pane_lancet', 1.20, 0.10, 2.40),
-    'pane_passage': lambda m: pane(m, 'pane_passage', 1.90, 0.06, 2.60),
+    'pane_lancet': lambda m: pane(m, 'pane_lancet', 1.20, 0.10, 2.40,
+                                  mullions=1, bw=0.095),
+    'pane_passage': lambda m: arch_plate('pane_passage', 1.90, 2.60, 0.06,
+                                         m['tallow'], spring=0.66),
     'oven_mouth': oven_mouth,
     'shutter': shutter,
 }

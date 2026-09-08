@@ -1192,12 +1192,26 @@ def build():
     stone_mats = {mats[k].name for k in ('old', 'dark', 'pale', 'new', 'rubble')}
     masonry = [o for o in parts
                if o.data.materials and o.data.materials[0].name in stone_mats]
-    fittings = [o for o in parts if o not in set(masonry)]
+
+    # Smoke goes in its own group, and it is the only group a texturing pass
+    # must leave alone.
+    #
+    # Its material is translucent (alpha 0.34). A bake replaces the material
+    # with image maps wired into a fresh Principled, which has no alpha, so a
+    # skinned castle comes back with solid pale-grey cubes sitting over its
+    # roofs. In daylight that reads as clumsy; at night it is the brightest
+    # thing in frame. Separating it here is what lets the skin pass skip it.
+    vapour = [o for o in parts
+              if o.data.materials and o.data.materials[0].name == mats['smoke'].name]
+    done = set(masonry) | set(vapour)
+    fittings = [o for o in parts if o not in done]
 
     joined = lib.merge_into('masonry', unrotated_first(masonry), parent=root)
     lib.repaint(joined, stone_rules(mats))
     lib.merge_into('fittings', unrotated_first(fittings), parent=root)
     lib.merge_into('ward', unrotated_first(courtyard(mats, rng)), parent=root)
+    if vapour:
+        lib.merge_into('vapour', unrotated_first(vapour), parent=root)
 
 
 def argv():
