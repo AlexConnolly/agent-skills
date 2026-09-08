@@ -23,9 +23,20 @@
       },
       "repository": "https://github.com/AlexConnolly/agent-skills",
       "license": "MIT",
-      "keywords": ["blender", "3d", "modelling", "gltf", "game-art", "procedural"],
+      "keywords": [
+        "blender",
+        "3d",
+        "modelling",
+        "gltf",
+        "game-art",
+        "procedural"
+      ],
       "category": "creative",
-      "tags": ["blender", "3d-modelling", "game-development"]
+      "tags": [
+        "blender",
+        "3d-modelling",
+        "game-development"
+      ]
     }
   ]
 }

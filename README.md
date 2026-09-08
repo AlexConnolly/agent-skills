@@ -25,7 +25,8 @@ be completely wrong in a way that is invisible in the source, and the only
 thing that catches it is a picture.
 
 Every model below was built by an agent from a one-paragraph brief, using this
-skill and nothing else.
+skill and nothing else. Their build scripts are in
+[`examples/`](plugins/blender-model/skills/blender-model/examples/).
 
 | | | |
 |:--:|:--:|:--:|
@@ -148,11 +149,13 @@ agent-skills/
     └── blender-model/
         ├── .claude-plugin/plugin.json
         ├── agents/
-        │   └── model-smith.md    the sub-agent that does the work
+        │   ├── model-smith.md    builds the model
+        │   └── model-critic.md   reviews it without seeing the code
         └── skills/blender-model/
             ├── SKILL.md          what the agent loads
             ├── reference.md      the API
             ├── scripts/          the toolkit itself
+            ├── examples/         the three models below, as build scripts
             └── images/
 ```
 

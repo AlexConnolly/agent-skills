@@ -28,6 +28,33 @@ exactly when the bad models get made.
 
 Several unrelated models: several agents, in parallel, one each.
 
+## Rule two: something that has not seen the code has to look at it
+
+When `model-smith` reports finished, **spawn `model-critic` on the result**
+before you accept it. Give it the same brief and the contact sheet path, and
+nothing else — it must not see the build script.
+
+```
+Agent(
+  subagent_type: "model-critic",
+  description:   "Review the <thing>",
+  prompt:        "<the same brief> + the contact sheet directory"
+)
+```
+
+If it returns NEEDS WORK, send its findings back to `model-smith` and go round
+again.
+
+This is not ceremony. A builder is the worst-placed reader of its own model:
+having written a function called `wheelhouse()`, it perceives a wheelhouse, and
+an open question like "what is wrong with this?" comes back anchored on the
+overall impression — the thickness of a mast, the colour of a crate — while an
+entire absent structure goes unmentioned. A reviewer that has only seen the
+pictures has no such anchor.
+
+One demo here shipped four passes with a cottage that had no walls, because
+its window frames and roof still drew a plausible house from every angle.
+
 ## Before the first model in a project
 
 The toolkit needs to be reachable from the build script, and `artconfig.py`
