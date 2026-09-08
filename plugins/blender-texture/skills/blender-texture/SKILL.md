@@ -1,6 +1,7 @@
 ---
 name: blender-texture
 description: Texture, skin, weather or age a 3D model in Blender — procedural materials built from placement masks, baked down to real glTF textures. Delegates to the material-smith agent, which works a bake → render → look → fix loop rather than tuning a node graph blind. Use for any request to texture, skin, weather, rust, moss, dirty up or re-material a model.
+argument-hint: [brief] [--effort low|medium|high]
 allowed-tools: Agent, Read, Glob, Grep, Bash(blender:*), Bash(git:*)
 ---
 
@@ -61,6 +62,27 @@ and no amount of iteration on the material will recover it.
 
 Normals, roughness and metallic are baked at half size by default
 (`MAP_SCALE`): no visible loss, a quarter of the memory each.
+
+## Effort
+
+Say how hard to push. It is passed straight to the agent, and it changes not
+just how many passes it runs but **which defects it acts on**:
+
+| | Passes | Acts on | Use when |
+|---|---|---|---|
+| `low` | 2–3 | Structural only — missing, wrong size, does not read, fails in silhouette | Background props, blockouts, anything seen briefly or far away |
+| `medium` *(default)* | 5 | Anything nameable in a specific view | Most work |
+| `high` | 8+ | Anything it cannot argue against — the burden flips to justifying *not* fixing | Hero assets, close-ups, the thing the whole scene is about |
+
+Low effort is not "worse", it is a different instruction: it tells the agent to
+report cosmetic defects rather than spend passes on them. Fifty background rocks
+at high effort is a waste; the one object the camera lands on at low effort is a
+false economy.
+
+The brief audit runs in full at every level. A missing structure is structural
+whatever the effort, and low effort is where it is most likely to slip past.
+
+    /blender-texture a wayside cross, waist high, seen at 22 m --effort low
 
 ## What to put in the brief
 

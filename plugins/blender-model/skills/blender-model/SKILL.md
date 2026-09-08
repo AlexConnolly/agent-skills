@@ -1,6 +1,7 @@
 ---
 name: blender-model
 description: Build or fix a 3D model in Blender — a prop, vehicle, building, character or piece of scenery — as parametric Python that exports to glTF. Delegates to the model-smith agent, which works a build → render → look → fix loop rather than writing geometry blind. Use for any request to make, change or improve a 3D model, mesh, or game asset.
+argument-hint: [brief] [--effort low|medium|high]
 allowed-tools: Agent, Read, Glob, Grep, Bash(blender:*), Bash(git:*)
 ---
 
@@ -21,7 +22,8 @@ Agent(
 ```
 
 The reason is not tidiness. This work is iterative improvement — do the work,
-capture it, work out what to improve, do that — at least five times per model,
+capture it, work out what to improve, do that — five times per model at the
+default effort,
 and that loop is mostly images. Run inline it fills the context of whatever
 else you were doing, and you start skipping renders to save room. That is
 exactly when the bad models get made.
@@ -73,6 +75,27 @@ needs your project's numbers in it. Either copy `scripts/` into the project as
 `OUT` is the one that fails silently. Point it somewhere the app does not load
 from and every render shows you the previous build while you "fix" a model that
 was already correct.
+
+## Effort
+
+Say how hard to push. It is passed straight to the agent, and it changes not
+just how many passes it runs but **which defects it acts on**:
+
+| | Passes | Acts on | Use when |
+|---|---|---|---|
+| `low` | 2–3 | Structural only — missing, wrong size, does not read, fails in silhouette | Background props, blockouts, anything seen briefly or far away |
+| `medium` *(default)* | 5 | Anything nameable in a specific view | Most work |
+| `high` | 8+ | Anything it cannot argue against — the burden flips to justifying *not* fixing | Hero assets, close-ups, the thing the whole scene is about |
+
+Low effort is not "worse", it is a different instruction: it tells the agent to
+report cosmetic defects rather than spend passes on them. Fifty background rocks
+at high effort is a waste; the one object the camera lands on at low effort is a
+false economy.
+
+The brief audit runs in full at every level. A missing structure is structural
+whatever the effort, and low effort is where it is most likely to slip past.
+
+    /blender-model a wayside cross, waist high, seen at 22 m --effort low
 
 ## What to put in the brief
 
