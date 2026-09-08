@@ -103,7 +103,7 @@ def shard(name, base, h, r, lean, bearing, mat, segments=4, tip=0.008):
                          segments=segments), mat)
 
 
-def fire_bed(name, r, h, at, mats, seed=0, slabs=3):
+def fire_bed(name, r, h, at, mats, seed=0, slabs=3, mat='core'):
     """The hot heart, as a cluster of overlapping slabs rather than a disc.
 
     An emissive surface does not shade -- every face of it renders the same
@@ -129,7 +129,7 @@ def fire_bed(name, r, h, at, mats, seed=0, slabs=3):
                                       at[1] + math.sin(a) * d,
                                       at[2] + h / 2),
                                  rot=(0, 0, rng.uniform(0, TAU))),
-                         mats['core']))
+                         mats[mat]))
     return out
 
 
@@ -344,13 +344,24 @@ def cresset(mats):
     out.append(bowl)
     # Sunk into the bowl, not filling it: pass one made this a flat disc the
     # full width of the rim and the cresset photographed as a bowl of custard.
-    out += fire_bed('crs_bed', 0.076, 0.044, (0, -0.235, 0.348), mats, seed=3)
+    #
+    # `flame`, NOT `core`. Section 2 is explicit that fire-core lives inside
+    # brazier baskets and the heart of the bonfire and NOWHERE ELSE, and
+    # section 3.6 lists cresset bowls as emis_fire_flame. A core bed here was
+    # my own violation of the one hard rule in the palette, caught by auditing
+    # the piece against section 2 rather than by looking at it -- it looked
+    # perfectly good.
+    out += fire_bed('crs_bed', 0.076, 0.044, (0, -0.235, 0.348), mats, seed=3,
+                    mat='flame')
     out += embers('crs_ember', (0, -0.235, 0.382), 0.052, 3, mats, seed=31,
                   size=0.32)
-    for i, (h, r, ln, bg) in enumerate(((0.118, 0.044, 0.12, 0.5),
-                                        (0.076, 0.034, 0.50, 2.9),
-                                        (0.096, 0.038, 0.28, 4.7),
-                                        (0.058, 0.028, 0.62, 1.6))):
+    # Tip heights solved against the 0.50 the brief asks for, not eyeballed:
+    # the tallest shard's apex is base + h*cos(lean) and the first go at these
+    # numbers put it at 0.526.
+    for i, (h, r, ln, bg) in enumerate(((0.098, 0.044, 0.12, 0.5),
+                                        (0.068, 0.034, 0.50, 2.9),
+                                        (0.082, 0.038, 0.28, 4.7),
+                                        (0.052, 0.028, 0.62, 1.6))):
         out.append(shard('crs_flame%d' % i,
                          (-math.cos(bg) * 0.042, -0.235 + math.sin(bg) * 0.042,
                           0.402),
@@ -529,12 +540,10 @@ def shutter(mats):
                                       1.050)),
                          mats['timber']))
     for k, z in enumerate((0.330, 1.760)):
-        out.append(paint(lib.box('sht_ledge%d' % k, (0.706, 0.026, 0.155),
-                                 loc=(0.358, 0.034, z)), mats['timber']))
-        out.append(paint(lib.box('sht_strap%d' % k, (0.480, 0.014, 0.070),
-                                 loc=(0.240, -0.014, z)), mats['iron']))
-        out.append(paint(lib.box('sht_pintle%d' % k, (0.052, 0.052, 0.105),
-                                 loc=(0.006, -0.014, z)), mats['iron']))
+        out.append(paint(lib.box('sht_ledge%d' % k, (0.706, 0.020, 0.155),
+                                 loc=(0.358, 0.031, z)), mats['timber']))
+        out.append(paint(lib.box('sht_strap%d' % k, (0.480, 0.012, 0.070),
+                                 loc=(0.240, -0.012, z)), mats['iron']))
     return out
 
 
@@ -565,40 +574,66 @@ PIECES = {
     'shutter': shutter,
 }
 
-# Every instance in the scene, as Three.js metres and a yaw about Three.js +Y.
-# Positions are the piece's ANCHOR -- the point authored at the local origin,
-# which is on the ground for anything that stands and on the bottom edge of the
-# opening for anything that hangs on a wall. ART-DIRECTION quotes several of
-# these as box centres; those have been converted here, once, so nobody has to
-# do it twice.
+# ---------------------------------------------------------------- placement
 #
-#   piece         Three.js (x, y, z)          yaw    note
-#   brazier       (6.0, 0.0, 26.2)              -    gate passage
-#   brazier       (6.0, 10.4, 22.0)             -    wall-walk over the gate
-#   brazier       (-19.0, 0.0, 6.0)             -    hall door
-#   brazier       (12.0, 0.0, 8.0)              -    ward
-#   bonfire       (24.0, 0.0, -2.0)             -    just inside the breach
-#   lamp_post     (48.0, -1.0, 24.0)          180    bridge post
-#   lamp_post     (9.5, 0.2, 30.4)             90    causeway
-#   lamp_post     (2.5, 0.2, 30.4)             90    causeway
-#   lantern       hung from each post at anchor + (arm) - (0, 0.34, 0)
-#   cresset       (3.4, 8.6, 28.2)              0    gatehouse front, west
-#   cresset       (8.6, 7.4, 28.2)              0    gatehouse front, east
-#   cresset       (26.2, 9.8, 19.6)           -90    SE tower
-#   cresset       (7.4, 3.2, 25.4)            180    gate passage, inner
-#   plume_tall    (-14.9, 23.5, -9.1)           -    keep chimney head
-#   plume_low     (-24.8, 8.9, 3.5)             -    hall ridge
-#   plume_low     (23.6, 3.1, 16.6)             -    oven flue
-#   pane_window   (-14.5, 13.45, 1.44)          0    keep, west of centre
-#   pane_window   (-4.5, 13.45, 1.44)           0    keep, east of centre
-#   shutter       (-15.2, 13.45, 1.42)         52    across the first pane
-#   shutter       (-3.8, 13.45, 1.42)         -34    across the second
-#   pane_hall     (-19.63, 4.90, 12.3)         90    hall, near end
-#   pane_hall     (-19.63, 4.90, 9.1)          90    hall, next along
-#   pane_loop     (13.2, 8.68, 26.4)         -58.4   east gate drum
-#   pane_lancet   (11.33, 2.00, -11.0)        -90    chapel west
-#   pane_passage  (6.0, 0.10, 24.0)             0    4 m back inside the passage
-#   oven_mouth    (22.9, 0.55, 16.6)          -90    bake-house oven front
+# Every instance, in Three.js metres, as the piece's ANCHOR -- the point this
+# script authors at the local origin. That is the ground for anything that
+# stands, the bottom edge of the lit rectangle for anything on a wall, and the
+# chimney head for a plume. Yaw is about Three.js +Y and, because a Blender Z
+# rotation and a Three.js Y rotation come out the same sign under this
+# exporter, it is also the Blender yaw.
+#
+# ART-DIRECTION quotes several of these as box CENTRES. Those are converted
+# here, once, so nobody does it twice and nobody does it differently.
+#
+# TWO THINGS ABOUT THE CASTLE THAT ARE NOT IN ART-DIRECTION AND CHANGE THE
+# NUMBERS. Both were read out of build_castle.py, not guessed:
+#
+# 1. The `dark_hole` slabs are not holes. A keep window is a solid box 0.34
+#    thick whose centre is 0.32 OUTSIDE the wall face, so it stands proud of
+#    the ashlar by 0.15 at its back and 0.49 at its front. "25 mm proud of the
+#    existing dark opening" therefore means 25 mm proud of the SLAB, which is
+#    half a metre off the wall -- and a lit board floating half a metre off an
+#    elevation is visible at a grazing angle. Every z below is the slab's outer
+#    face plus 25 mm plus half the pane thickness. If the castle's openings are
+#    ever recessed properly, these all move in by 0.34.
+# 2. The gate drum loop is 0.28 wide, not 0.44. See the note at the top.
+#
+#  piece         Three.js (x, y, z)            yaw     from
+#  ------------- ----------------------------- ------- -----------------------
+#  brazier       (6.00,  0.00,  26.20)            0    gate passage
+#  brazier       (6.00, 10.40,  22.00)            0    wall-walk over the gate
+#  brazier       (-19.00, 0.00,  6.00)            0    hall door
+#  brazier       (12.00, 0.00,   8.00)            0    ward
+#  bonfire       (24.00, 0.00,  -2.00)            0    just inside the breach
+#  lamp_post     (48.00,-1.00,  24.00)          180    bridge post
+#  lamp_post     (9.50,  0.20,  30.40)           90    causeway
+#  lamp_post     (2.50,  0.20,  30.40)           90    causeway
+#  lantern       post anchor + hook, i.e. + (0, 1.86, -0.262) rotated by the
+#                post's own yaw. Three more hang at the hall door, the well
+#                beam and the gate arch: six in all.
+#  cresset       gatehouse front x2, SE tower x1, gate passage x1. Placed by
+#                eye against the hero frame and then frozen -- section 3.4
+#                gives them no point light, so they are read as four small
+#                marks and their exact metres do not signify.
+#  plume_tall    (-14.90, 23.50, -9.10)           0    keep chimney head
+#  plume_low     (-24.80,  8.90,  3.50)           0    hall ridge
+#  plume_low     (23.60,  3.10, 16.60)            0    oven flue
+#  pane_window   (-14.50, 13.45,  1.295)          0    keep, west of centre
+#  pane_window   (-4.50,  13.45,  1.295)          0    keep, east of centre
+#  shutter       (-15.20, 13.45,  1.32)          52    across the first pane
+#  shutter       (-3.80,  13.45,  1.32)         -34    across the second
+#  pane_hall     (-19.465, 4.90, 12.30)          90    hall, near end
+#  pane_hall     (-19.465, 4.90,  9.10)          90    hall, next along
+#  pane_loop     (13.358,  8.675, 26.657)        31.6  east gate drum
+#  pane_lancet   (11.175,  2.00, -11.00)        -90    chapel west
+#  pane_passage  (6.00,    0.10, 24.00)           0    4 m inside the passage
+#  oven_mouth    (22.617,  0.35, 15.912)        235    oven front, facing the
+#                                                      ward
+#
+# Six lit openings on four different buildings at four different heights, plus
+# the passage and the oven mouth which are not openings on an elevation. The
+# other thirty-four stay cold, which is the whole point of the group.
 
 
 def argv():

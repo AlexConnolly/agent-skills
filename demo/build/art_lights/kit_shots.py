@@ -72,7 +72,6 @@ LAYOUT = [
 INTENSITY = {
     ('bonfire', 'emis_fire_core'): 6.0,
     ('brazier', 'emis_fire_core'): 4.5,
-    ('cresset', 'emis_fire_core'): 3.5,
     ('*', 'emis_fire_flame'): 3.0,
     ('cresset', 'emis_fire_flame'): 3.5,
     ('*', 'emis_ember'): 2.0,
