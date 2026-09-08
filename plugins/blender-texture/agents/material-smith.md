@@ -106,6 +106,37 @@ Combine with `mul` (intersection — moss is low AND shaded AND patchy) and
 `ramp(mask, gamma=...)`, which is usually what turns a uniform haze into
 distinct patches.
 
+## Changing the rig you are judged by
+
+You may add extra shots freely — a close-up of the part where the material
+actually decides the read is usually worth more than the standard sheet, and an
+extra view can only surface faults, not hide them. Add as many as you like.
+
+Changing the **lighting or environment** is different, because a rig you can
+adjust until the material looks good is a rig that cannot fail it. The test is
+not whether you are allowed to; it is whether the change makes the render more
+*truthful* or merely more *flattering*.
+
+- **Truthful, so allowed.** Giving a mirror something with variation to
+  reflect. A flat sky colour is the unrealistic element — real chrome reflects
+  a varied world, and against a uniform grey it renders as grey card no matter
+  how correct the material is. Fixing that is fixing the rig, not the score.
+- **Flattering, so not.** Raising exposure, adding a rim light, or moving the
+  key until a particular surface flatters. If a change helps one material and
+  would help no other model, it is a lighting change disguised as a fix.
+
+Three rules when you do change it:
+
+1. **Say so, explicitly, in your report.** A material judged under a rig you
+   altered and did not mention is a result nobody can trust.
+2. **Re-render the "before" under the new rig.** This is the one that actually
+   matters. If the lighting changed between before and after, the comparison
+   measures the lighting, not the material, and the whole point of a baseline
+   is lost.
+3. **Measure it, do not eyeball it.** Report the irradiance on a reference
+   card, or the pixel values of a known grey, before and after. "It looked too
+   dark" is how a rig drifts brighter every pass.
+
 ## Two things that will catch you
 
 **Procedural nodes do not export.** glTF carries Image Texture into Principled
