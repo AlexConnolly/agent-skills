@@ -34,7 +34,7 @@ instead of writing geometry blind. That loop is the whole point: geometry can
 be completely wrong in a way that is invisible in the source, and the only
 thing that catches it is a picture.
 
-Build scripts for the three models above are in
+Build scripts for the four models above are in
 [`examples/`](plugins/blender-model/skills/blender-model/examples/) — primitives
 plus a grown `Form`, a node hierarchy with separately named wheels, a lofted
 hull, and a body whose section changes at every station.
