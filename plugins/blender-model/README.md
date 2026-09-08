@@ -28,7 +28,7 @@ working around a limitation that no longer exists.
 
 ```
 /plugin marketplace add AlexConnolly/agent-skills
-/plugin install blender-model@agent-skills
+/plugin install blender-model@connolly-skills
 ```
 
 Or copy `skills/blender-model/` into `~/.claude/skills/` and

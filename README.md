@@ -60,7 +60,7 @@ Adds the skill *and* its sub-agent, and keeps them updatable. In Claude Code:
 
 ```
 /plugin marketplace add AlexConnolly/agent-skills
-/plugin install blender-model@agent-skills
+/plugin install blender-model@connolly-skills
 ```
 
 Then use it by name:
@@ -72,7 +72,7 @@ Then use it by name:
 To update later:
 
 ```
-/plugin marketplace update agent-skills
+/plugin marketplace update connolly-skills
 ```
 
 ### Option 2 — copy the skill in by hand
