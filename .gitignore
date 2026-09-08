@@ -5,3 +5,5 @@ public/
 *.blend
 *.blend1
 .DS_Store
+tests/.out/
+tests/.shots/
