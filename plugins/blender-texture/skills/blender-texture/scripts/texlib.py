@@ -651,7 +651,10 @@ def bake_set(obj, name, size=None, maps=None):
         _setup_cycles(samples)
         # Normals and roughness carry far less information than base colour,
         # so they are baked smaller: no visible loss, a quarter of the memory.
-        msize = max(64, int(size * cfg.MAP_SCALE.get(key, 1.0)))
+        # getattr, because a project carrying a slightly older texconfig.py
+        # would otherwise die here with an AttributeError - AFTER the
+        # unwrap has run and the time has been spent.
+        msize = max(64, int(size * getattr(cfg, 'MAP_SCALE', {}).get(key, 1.0)))
         img = bpy.data.images.new('%s_%s' % (name, key), msize, msize,
                                   alpha=False, float_buffer=False)
         if non_colour:
@@ -818,6 +821,11 @@ def export(out_name, objs=None):
     `objs` limits the export to those objects; None exports the scene. The
     previous signature took a list of names it then ignored and exported
     everything regardless, which is worth knowing if you have old call sites."""
+    if not isinstance(out_name, str):
+        raise TypeError(
+            'export() takes (out_name, objs=None). It previously took a list '
+            'of object names first and ignored them; you have passed a %s as '
+            'the name. Swap the arguments.' % type(out_name).__name__)
     os.makedirs(cfg.MODELS, exist_ok=True)
     path = os.path.join(cfg.MODELS, out_name + '.glb')
     bpy.ops.object.select_all(action='DESELECT')

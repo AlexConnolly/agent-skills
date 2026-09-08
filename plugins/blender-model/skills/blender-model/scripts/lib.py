@@ -634,7 +634,17 @@ def path_frames(path):
         up = mathutils.Vector((0.0, 0.0, 1.0))
         r = t.cross(up)
         if r.length < 1e-6:
-            r = mathutils.Vector((0.0, 1.0, 0.0))
+            # The path is running straight up, so it is parallel to the
+            # reference and the cross product collapses. Falling back to a
+            # fixed axis is not enough on its own: neighbouring rings then pick
+            # DIFFERENT fallbacks as the tangent wobbles either side of
+            # vertical, the frame snaps forty-five degrees between them, and
+            # the sweep shows a hard bright pinch partway along. Carrying the
+            # previous frame forward keeps it continuous.
+            r = (out[-1][1] if out else mathutils.Vector((0.0, 1.0, 0.0)))
+            r = r - t * r.dot(t)
+            if r.length < 1e-6:
+                r = mathutils.Vector((1.0, 0.0, 0.0))
         r.normalize()
         u = r.cross(t)
         out.append((mathutils.Vector(p), r, u, t))
@@ -685,8 +695,10 @@ def sweep(name, path, sections, close=False, smooth=None):
     bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
     bm.to_mesh(mesh)
     bm.free()
-    return _finish(obj, mesh, (0, 0, 0), (0, 0, 0),
-                   smooth=True if smooth is None else smooth)
+    # Honours SMOOTH_DEFAULT. A swept form is often organic and wants smoothing,
+    # but forcing it here made faceted low-poly smoke read as bent rubber
+    # tubing in a project whose every other surface was flat.
+    return _finish(obj, mesh, (0, 0, 0), (0, 0, 0), smooth=smooth)
 
 
 def rounded_box(name, size, r_upright=0.02, r_horizontal=None, loc=(0, 0, 0),

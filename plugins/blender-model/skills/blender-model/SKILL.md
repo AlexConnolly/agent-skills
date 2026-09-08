@@ -137,30 +137,50 @@ Give it:
 
 ## Work out the fidelity budget before you model anything
 
-One object gets one UV square, so the detail it can ever carry is fixed by its
-size before a single vertex exists:
+One object gets one UV square, so the detail it can ever carry is fixed before
+a single vertex exists. The formula is not the obvious one:
 
 ```
-texels per metre  ≈  map size / object extent in metres
-
-max metres  ≈  map size / target texels per metre
+texels per metre  ≈  map size × sqrt(packing efficiency) / sqrt(total SURFACE AREA)
 ```
 
-| Seen at | Target | 2048 map | 4096 map |
+**Surface area, not longest edge**, because a wall module has two faces, two
+ends, a walk and a parapet — its area is far larger than its footprint
+suggests. And **packing efficiency**, because `smart_project` on a model of many
+small islands fills about a third of the UV square.
+
+Measured on a 4 m castle wall module: dividing by extent instead of √area
+over-estimates by **3.87×**, and ignoring the 31.9% packing over-estimates by a
+further **1.77×**. Together **6.85×** — which is exactly the gap observed
+between prediction and measurement.
+
+What that buys you, on a 4096 map at the packing `smart_project` actually
+delivers:
+
+| Seen at | Target | Surface area affordable | ≈ a cube of side |
 |---|---|---|---|
-| Distant prop, 40 px on screen | 64 px/m | 32 m | 64 m |
-| Normal game camera | 128 px/m | 16 m | 32 m |
-| Player walks up to it | 256 px/m | 8 m | 16 m |
-| In your face, hero render | 512 px/m | 4 m | 8 m |
+| Distant prop, 40 px on screen | 64 px/m | 1300 m² | 14.8 m |
+| Normal game camera | 128 px/m | 330 m² | 7.4 m |
+| Player walks up to it | 256 px/m | 82 m² | 3.7 m |
+| In your face, hero render | 512 px/m | 20 m² | **1.8 m** |
 
-Measured, not theoretical: a 71 m castle baked to a 4096 map came out at
-**14.7 texels per metre**. No amount of modelling skill or material work
-rescues that, because the arithmetic decided it before the work started.
+**512 px/m on a single baked UV set is a prop-sized budget, not an
+architecture-sized one.** At building scale the honest answer is tiling or
+triplanar detail maps, which this pipeline does not have. A 4 m wall module is
+a 256 px/m object at best, and only if it is unwrapped well.
+
+Two measured data points to calibrate against: a 71 m castle came out at
+**14.7 texels per metre** at 4096. A 4 m module of the same wall, same map
+size, came out at **145** — **9.9× denser**. Modularity delivers a large, real
+gain. It does not deliver a hero-render surface at architecture scale.
+
+**Do not trust this table over a measurement.** `texlib.texel_density(obj)`
+after unwrapping is the truth, and `bake_set(size='auto')` uses it. The table
+tells you whether to attempt something; the measurement tells you what you got.
 
 **If the object exceeds its budget, it must be modular.** That is not a style
-preference, it is the only way to buy detail: eight 4 m wall sections each on
-their own 2048 map carry sixteen times the texel density of one 32 m wall on
-the same map, and cost less memory because they repeat.
+preference, it is the only way to buy detail — and it moved the distance at
+which that wall stops being sharp from 85 m to 8.6 m.
 
 ### Building a kit rather than an object
 
@@ -175,9 +195,13 @@ of the build script where the next person will find them:
 - **The origin convention.** Put it on the connection, not at the centre of
   mass, so placing a piece is setting a position on the grid rather than
   solving an offset.
-- **Overlap, deliberately.** A module exactly one pitch long opens a visible
-  slot at every joint the moment any jitter or rotation is applied. Build it
-  slightly longer and let consecutive pieces overlap.
+- **Overlap, deliberately — but never coplanar.** A module exactly one pitch
+  long opens a visible slot at every joint the moment any jitter or rotation is
+  applied, so build it slightly longer. Plain overlap is not enough: two
+  identical faces at the same place z-fight and flicker. Taper or step the
+  overlapping ends so consecutive pieces touch on a single line and are
+  strictly in front of or behind each other everywhere else. Drawing the last
+  60 mm in by 2.5% is enough, and makes the joints invisible.
 - **What varies and what does not.** Modules are seen many times. Anything
   distinctive — a particular crack, a bright object — reads as a repeat and is
   worse than no detail at all. Put the variety in a few pieces used once.
