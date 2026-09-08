@@ -502,6 +502,49 @@ def _setup_cycles(samples):
         pass
 
 
+def size_for(obj, target=None, cap=None, floor=128, quiet=False):
+    """The map size that actually hits a target texel density for this object.
+
+    Density scales linearly with map size, so measuring at 1024 and scaling is
+    exact — and unlike `extent / target`, it accounts for how well the unwrap
+    packed, which is usually the larger term.
+
+    The object must be unwrapped first.
+
+    When the answer is above the cap it says so, loudly, because that is the
+    moment the fidelity budget has been exceeded and no amount of further work
+    will recover it: one object gets one UV square, and the only way to buy
+    more texels is to split the thing into modules."""
+    target = target or cfg.TARGET_PX_PER_M
+    cap = cap or cfg.MAX_BAKE_SIZE
+    d = texel_density(obj, 1024)
+    if d <= 0:
+        print('WARNING %s has no usable UVs; falling back to %d'
+              % (obj.name, cfg.BAKE_SIZE))
+        return cfg.BAKE_SIZE
+    need = 1024.0 * target / d
+    size = floor
+    while size < need and size < cap:
+        size *= 2
+    size = int(min(cap, max(floor, size)))
+    got = d * size / 1024.0
+    if not quiet:
+        print('TEXELS %-20s %6.1f px/m at %d  (target %.0f)'
+              % (obj.name, got, size, target))
+        if got < target * 0.75:
+            ext = max(max(v.co[i] for v in obj.data.vertices)
+                      - min(v.co[i] for v in obj.data.vertices)
+                      for i in range(3))
+            print('       OVER BUDGET. %.1f px/m against a target of %.0f, and '
+                  '%d is the cap.' % (got, target, cap))
+            print('       This object is %.1f m across. At %.0f px/m one map '
+                  'covers about %.1f m,' % (ext, target, cap / target))
+            print('       so it needs roughly %d modules rather than more '
+                  'effort on this one.'
+                  % max(2, int(round((ext / (cap / target)) ** 2))))
+    return size
+
+
 def bake_set(obj, name, size=None, maps=None):
     """Bake the object's procedural material down to image files.
 
@@ -510,10 +553,12 @@ def bake_set(obj, name, size=None, maps=None):
     Base colour is baked as DIFFUSE with only the colour pass, so it is the
     albedo and not the albedo times the lighting — bake COMBINED by accident
     and every model arrives with this scene's sun burned into it."""
-    size = size or cfg.BAKE_SIZE
     maps = maps or cfg.MAPS
     if not obj.data.uv_layers:
         raise SystemExit('%s has no UVs; call unwrap() first' % obj.name)
+    if size == 'auto':
+        size = size_for(obj)
+    size = size or cfg.BAKE_SIZE
     os.makedirs(cfg.TEXTURES, exist_ok=True)
 
     bpy.ops.object.select_all(action='DESELECT')
@@ -547,7 +592,10 @@ def bake_set(obj, name, size=None, maps=None):
     for key in maps:
         kind, non_colour, kw, samples = spec[key]
         _setup_cycles(samples)
-        img = bpy.data.images.new('%s_%s' % (name, key), size, size,
+        # Normals and roughness carry far less information than base colour,
+        # so they are baked smaller: no visible loss, a quarter of the memory.
+        msize = max(64, int(size * cfg.MAP_SCALE.get(key, 1.0)))
+        img = bpy.data.images.new('%s_%s' % (name, key), msize, msize,
                                   alpha=False, float_buffer=False)
         if non_colour:
             img.colorspace_settings.name = 'Non-Color'
@@ -563,8 +611,9 @@ def bake_set(obj, name, size=None, maps=None):
         img.file_format = 'PNG'
         img.save()
         out[key] = path
-        print('BAKED %-10s %s  (%d material%s)'
-              % (key, path, len(trees), '' if len(trees) == 1 else 's'))
+        print('BAKED %-10s %4d  %s  (%d material%s)'
+              % (key, msize, path, len(trees),
+                 '' if len(trees) == 1 else 's'))
     for nt, n in targets:
         nt.nodes.remove(n)
     return out

@@ -37,6 +37,31 @@ bake is not an optimisation, it is the only way the material leaves Blender.
 `texlib.bake_set()` and `apply_baked()` do it, and `texlib.export()` prints the
 embedded image count so a silent failure cannot ship.
 
+## Size the maps from the object, not by guessing
+
+`bake_set(obj, name, size='auto')` picks the map size that actually reaches
+`TARGET_PX_PER_M` for this object — measured after unwrapping, so it accounts
+for how well the UVs packed, which is usually the larger term.
+
+When it cannot reach the target even at `MAX_BAKE_SIZE`, it says so and works
+out how many modules the object needs instead:
+
+```
+TEXELS castle               115.4 px/m at 4096  (target 256)
+       OVER BUDGET. 115.4 px/m against a target of 256, and 4096 is the cap.
+       This object is 35.5 m across. At 256 px/m one map covers about 16.0 m,
+       so it needs roughly 5 modules rather than more effort on this one.
+```
+
+That message is the fidelity budget arriving at the moment it can still be
+acted on. One object gets one UV square, so `MAX_BAKE_SIZE / TARGET_PX_PER_M`
+is the largest object that can ever reach that fidelity — 16 m at 4096 and
+256 px/m. Past it the answer is modular geometry, not more texturing effort,
+and no amount of iteration on the material will recover it.
+
+Normals, roughness and metallic are baked at half size by default
+(`MAP_SCALE`): no visible loss, a quarter of the memory each.
+
 ## What to put in the brief
 
 As with modelling, write more than you think you need to. The agent audits its

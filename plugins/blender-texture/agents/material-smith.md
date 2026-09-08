@@ -49,9 +49,15 @@ Both are placement, not colour. Which is why the mask views exist.
    with `layer(under, over, mask)`. Vary roughness with the same masks that
    drive colour — a wet patch that is not also smoother does not read as wet.
 
-4. **Unwrap and check the texel density.** `tx.unwrap(obj)` then
-   `tx.texel_density(obj)`. Print it. Two models in one scene at wildly
-   different densities is the commonest reason a set fails to look like a set.
+4. **Unwrap, then let the map size follow from the object.** `tx.unwrap(obj)`,
+   then `tx.bake_set(obj, name, size='auto')`, which measures the density and
+   picks the size that reaches `TARGET_PX_PER_M`.
+
+   If it reports OVER BUDGET, stop and say so. That means the object is too
+   large to reach the requested fidelity on one UV square, and it is telling
+   you how many modules it would take instead. No amount of further material
+   work recovers it — this is arithmetic, not effort, and reporting it back is
+   more useful than quietly delivering a soft result.
 
 5. **Bake and render.** `tx.bake_set(...)`, `tx.apply_baked(...)`, then
    `blender --background --python texshots.py -- <name>`.

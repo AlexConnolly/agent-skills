@@ -27,6 +27,23 @@ SHOTS = os.environ.get('TEX_SHOTS') or os.path.join(HERE, 'shots')
 # a few thousand triangles even 2048 is seconds rather than minutes.
 BAKE_SIZE = 1024
 
+# Pass size='auto' to bake_set() to size the map from the object instead, using
+# TARGET_PX_PER_M below. MAX_BAKE_SIZE is the ceiling: when 'auto' hits it, the
+# object is over its fidelity budget and wants splitting into modules, which
+# bake_set will say out loud.
+MAX_BAKE_SIZE = 4096
+
+# Not every map needs the resolution base colour does. Normals and roughness
+# carry far less information and halving them costs nothing visible while
+# quartering the memory. Relative to the chosen size.
+MAP_SCALE = {
+    'basecolor': 1.0,
+    'roughness': 0.5,
+    'normal':    0.5,
+    'metallic':  0.5,
+    'ao':        0.5,
+}
+
 # Cycles samples for the bake. Colour and roughness are flat lookups and need
 # almost nothing; ambient occlusion is the one that gets noisy, so AO_SAMPLES
 # is separate.
@@ -59,9 +76,18 @@ UNWRAP_MARGIN = 0.0005
 
 # ---------------------------------------------------------------- look
 
-# Texel density check. If a model is 8 m long on a 1024 map, that is 128 px per
-# metre. Wildly different densities between models in the same scene is the
-# most common reason a set of assets fails to look like a set.
+# The texel density to aim for, and what bake_set(size='auto') sizes maps to
+# hit. Wildly different densities between models in one scene is the commonest
+# reason a set of assets fails to look like a set.
+#
+#    64 px/m   a distant prop, forty pixels on screen
+#   128 px/m   a normal game camera
+#   256 px/m   the player walks up to it
+#   512 px/m   in your face, a hero render
+#
+# One object gets one UV square, so this and MAX_BAKE_SIZE together decide the
+# largest object that can ever reach this fidelity: 4096 / 256 is 16 m. Beyond
+# that the answer is modules, not effort.
 TARGET_PX_PER_M = 128.0
 
 # Contact sheet.
