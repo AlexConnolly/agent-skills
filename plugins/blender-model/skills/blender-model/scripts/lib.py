@@ -18,6 +18,7 @@
 import bpy
 import bmesh
 import math
+import mathutils
 import os
 
 import artconfig as cfg
@@ -387,6 +388,125 @@ def loft(name, stations, cap_ends=True, smooth=None):
     bm.free()
     return _finish(obj, mesh, (0, 0, 0), (0, 0, 0),
                    smooth=True if smooth is None else smooth)
+
+
+def path_frames(path):
+    """The orientation of a path at each of its points.
+
+    Returns [(origin, right, up, tangent), ...]. Sweeping is only half the
+    problem: anything attached to a swept form — a limb on a body, a fitting on
+    a pipe — needs to know which way the surface faces there, and without this
+    every caller ends up reimplementing the framing maths from `profile`."""
+    out = []
+    for i, p in enumerate(path):
+        nxt = path[min(i + 1, len(path) - 1)]
+        prv = path[max(i - 1, 0)]
+        t = mathutils.Vector((nxt[0] - prv[0], nxt[1] - prv[1], nxt[2] - prv[2]))
+        if t.length < 1e-9:
+            t = mathutils.Vector((1.0, 0.0, 0.0))
+        t.normalize()
+        up = mathutils.Vector((0.0, 0.0, 1.0))
+        r = t.cross(up)
+        if r.length < 1e-6:
+            r = mathutils.Vector((0.0, 1.0, 0.0))
+        r.normalize()
+        u = r.cross(t)
+        out.append((mathutils.Vector(p), r, u, t))
+    return out
+
+
+def sweep(name, path, sections, close=False, smooth=None):
+    """Sweep a section that CHANGES along the path.
+
+    `profile` scales one section uniformly, so a form that is round at one end,
+    oval in the middle and keeled at the other has to pick one. This takes a
+    list of sections, one per path point, each with the same point count and
+    winding — so the shape itself can change, not just its size.
+
+    Use `path_frames(path)` to work out where the surface faces if you need to
+    attach anything to it."""
+    obj, mesh = _new(name)
+    bm = bmesh.new()
+    frames = path_frames(path)
+    if len(sections) != len(path):
+        raise ValueError('sweep needs one section per path point: got %d '
+                         'sections for %d points' % (len(sections), len(path)))
+    n = len(sections[0])
+    rings = []
+    for (origin, right, up, _t), section in zip(frames, sections):
+        if len(section) != n:
+            raise ValueError('every section must have the same point count; '
+                             'got %d and %d' % (n, len(section)))
+        rings.append([bm.verts.new(origin + right * a + up * b)
+                      for (a, b) in section])
+    for i in range(len(rings) - 1):
+        for j in range(n):
+            k = (j + 1) % n
+            quad = (rings[i][j], rings[i][k], rings[i + 1][k], rings[i + 1][j])
+            if len({v.co.to_tuple(5) for v in quad}) < 3:
+                continue
+            try:
+                bm.faces.new(quad)
+            except ValueError:
+                pass
+    if close:
+        for r, flip in ((rings[0], True), (rings[-1], False)):
+            try:
+                bm.faces.new(list(reversed(r)) if flip else r)
+            except ValueError:
+                pass
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    return _finish(obj, mesh, (0, 0, 0), (0, 0, 0),
+                   smooth=True if smooth is None else smooth)
+
+
+def rounded_box(name, size, r_upright=0.02, r_horizontal=None, loc=(0, 0, 0),
+                rot=(0, 0, 0), segments=2, smooth=None):
+    """A box with independent fillet radii on the upright and horizontal edges.
+
+    `box(chamfer=)` puts the same radius on all twelve edges, and almost no
+    manufactured object is made that way — a case has a generous radius on its
+    four corners and a tight one where the faces meet the top. One radius for
+    everything is a large part of what makes a modelled object read as CG at
+    close range.
+
+    `r_horizontal` defaults to a quarter of `r_upright`."""
+    if r_horizontal is None:
+        r_horizontal = r_upright * 0.25
+    obj, mesh = _new(name)
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co.x *= size[0]
+        v.co.y *= size[1]
+        v.co.z *= size[2]
+
+    def bevel(vertical, amount):
+        if amount <= 0:
+            return
+        edges = []
+        for e in bm.edges:
+            d = e.verts[1].co - e.verts[0].co
+            is_upright = abs(d.z) > max(abs(d.x), abs(d.y))
+            if is_upright == vertical:
+                edges.append(e)
+        if edges:
+            bmesh.ops.bevel(
+                bm, geom=list({v for e in edges for v in e.verts}) + edges,
+                offset=amount, segments=segments, affect='EDGES', profile=0.5,
+                clamp_overlap=True)
+
+    # Uprights first: they are usually the larger radius, and bevelling the
+    # large one into a mesh that already carries the small one gives a cleaner
+    # corner than the other way round.
+    bevel(True, r_upright)
+    bevel(False, r_horizontal)
+    bm.to_mesh(mesh)
+    bm.free()
+    return _finish(obj, mesh, loc, rot, smooth=smooth)
 
 
 def circle_section(r, segments=10):

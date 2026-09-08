@@ -187,6 +187,43 @@ class MaskView:
         return False
 
 
+def mask_stats(mask_png, all_png):
+    """Measure a mask view: what fraction of the model it actually covers.
+
+    "The moss looks thin" is not something you can act on twice. "8.5 percent,
+    target 15" is. Reported against `all_png`, a constant-1 render of the same
+    view, so coverage is a fraction of the *model* rather than of the frame.
+
+    `soft` is the fraction sitting in the mushy middle — a mask that is mostly
+    soft is a gradient, and a gradient is what weathering never looks like."""
+    import numpy as np
+    out = {}
+    ref = bpy.data.images.load(all_png)
+    ref.colorspace_settings.name = 'Non-Color'
+    w, h = ref.size
+    rbuf = np.empty(w * h * 4, dtype=np.float32)
+    ref.pixels.foreach_get(rbuf)
+    body = rbuf.reshape(-1, 4)[:, 0] > 0.02
+    bpy.data.images.remove(ref)
+    n_body = int(body.sum())
+    if not n_body:
+        return {'error': 'the constant-1 view is empty; is the model in frame?'}
+
+    img = bpy.data.images.load(mask_png)
+    # Non-Color, because the render is written display-referred and reading it
+    # as sRGB inflates every value — enough to report coverage roughly twenty
+    # points optimistic.
+    img.colorspace_settings.name = 'Non-Color'
+    buf = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(buf)
+    v = buf.reshape(-1, 4)[:, 0][body]
+    bpy.data.images.remove(img)
+    out['strong'] = float((v > 0.5).mean() * 100.0)
+    out['soft'] = float(((v > 0.15) & (v < 0.5)).mean() * 100.0)
+    out['mean'] = float(v.mean())
+    return out
+
+
 def sheet(objs, name, masks=None, hero=None):
     """The full set. `masks` is {label: fn(graph) -> socket}."""
     out = os.path.join(cfg.SHOTS, name)
@@ -223,11 +260,40 @@ def sheet(objs, name, masks=None, hero=None):
     camera(close, centre, lens=85)
     render(os.path.join(out, 'flat.png'))
 
-    # 4. every mask, on its own
-    for label, fn in (masks or {}).items():
-        with MaskView(objs, fn):
+    # 4. every mask, on its own — at hero framing and close, with numbers.
+    #
+    # Close framing matters: a 2.5 m band is about twenty pixels wide in the
+    # hero shot, and you cannot judge whether an edge is ragged or smooth at
+    # twenty pixels. Two passes of a mask can look identical at hero size and
+    # obviously different close up.
+    if masks:
+        all_png = os.path.join(out, 'mask__all.png')
+        with MaskView(objs, lambda g: g.colour(0xFFFFFF)):
             camera(hero_loc, centre, ortho=size * 1.5)
-            render(os.path.join(out, 'mask_%s.png' % label))
+            render(all_png)
+        stats = {}
+        for label, fn in masks.items():
+            with MaskView(objs, fn):
+                camera(hero_loc, centre, ortho=size * 1.5)
+                p = os.path.join(out, 'mask_%s.png' % label)
+                render(p)
+                camera(close, centre, lens=85)
+                render(os.path.join(out, 'maskc_%s.png' % label))
+            try:
+                stats[label] = mask_stats(p, all_png)
+            except Exception as e:                      # numpy or a bad render
+                stats[label] = {'error': str(e)}
+        print()
+        print('%-14s %8s %8s %8s' % ('mask', 'strong%', 'soft%', 'mean'))
+        for label, s in sorted(stats.items()):
+            if 'error' in s:
+                print('%-14s  %s' % (label, s['error']))
+            else:
+                print('%-14s %8.1f %8.1f %8.3f'
+                      % (label, s['strong'], s['soft'], s['mean']))
+        print('strong is the fraction of the model the mask actually covers.')
+        print('a high soft fraction means a gradient, and weathering is not a')
+        print('gradient - if soft exceeds strong, tighten the mask.')
 
     print('SHEET  %s' % out)
     return out

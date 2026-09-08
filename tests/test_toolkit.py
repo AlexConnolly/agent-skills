@@ -352,6 +352,60 @@ def test_profile_scales_taper_the_sweep():
           'start %.3f, end %.3f' % (radius(near), radius(far)))
 
 
+def test_sweep_changes_section_along_the_path():
+    """profile() scales one section uniformly; sweep() takes a different
+    section per station, so a form can be round at one end and keeled at the
+    other."""
+    lib.reset()
+    path = [(x * 0.5, 0, 0) for x in range(5)]
+    round_s = lib.circle_section(0.2, 8)
+    flat_s = [(a * 1.6, b * 0.25) for (a, b) in round_s]
+    sections = [round_s, round_s, flat_s, flat_s, flat_s]
+    o = lib.sweep('morph', path, sections)
+    def spread(vs, i):
+        return max(v.co[i] for v in vs) - min(v.co[i] for v in vs)
+    near = [v for v in o.data.vertices if v.co.x < 0.01]
+    far = [v for v in o.data.vertices if v.co.x > 1.99]
+    check('sweep changes the section shape',
+          spread(far, 1) > spread(near, 1) * 1.3
+          and spread(far, 2) < spread(near, 2) * 0.6,
+          'near %.2f x %.2f, far %.2f x %.2f'
+          % (spread(near, 1), spread(near, 2), spread(far, 1), spread(far, 2)))
+    try:
+        lib.sweep('bad', path, sections[:3])
+        check('sweep rejects a section count mismatch', False, 'no error')
+    except ValueError:
+        check('sweep rejects a section count mismatch', True)
+
+
+def test_path_frames_are_orthonormal():
+    frames = lib.path_frames([(0, 0, 0), (1, 0, 0), (2, 1, 0)])
+    ok = True
+    for _o, r, u, t in frames:
+        if abs(r.length - 1) > 1e-5 or abs(u.length - 1) > 1e-5:
+            ok = False
+        if abs(r.dot(t)) > 1e-5 or abs(r.dot(u)) > 1e-5:
+            ok = False
+    check('path_frames returns an orthonormal frame per point', ok)
+
+
+def test_rounded_box_uses_two_radii():
+    """box(chamfer=) puts one radius on all twelve edges; almost no
+    manufactured object is made that way."""
+    lib.reset()
+    a = lib.rounded_box('a', (1, 1, 1), r_upright=0.2, r_horizontal=0.02)
+    b = lib.box('b', (1, 1, 1), chamfer=0.2)
+    check('rounded_box builds geometry', len(a.data.polygons) > 6,
+          '%d faces' % len(a.data.polygons))
+    check('rounded_box differs from a single-radius chamfer',
+          len(a.data.vertices) != len(b.data.vertices),
+          'both %d verts' % len(a.data.vertices))
+    zs = sorted({round(v.co.z, 3) for v in a.data.vertices})
+    check('rounded_box keeps the horizontal radius tight',
+          abs(max(zs) - 0.5) < 1e-6 and (0.5 - zs[-2]) < 0.05,
+          'top rings at %s' % zs[-3:])
+
+
 def main():
     for fn in (test_size_is_full_extent,
                test_cut_at_preserves_the_mesh,
@@ -371,7 +425,10 @@ def main():
                test_fuse_removes_the_interior_wall,
                test_revolve_makes_a_closed_shell,
                test_revolve_welds_an_axis_pole,
-               test_profile_scales_taper_the_sweep):
+               test_profile_scales_taper_the_sweep,
+               test_sweep_changes_section_along_the_path,
+               test_path_frames_are_orthonormal,
+               test_rounded_box_uses_two_radii):
         print('--- %s' % fn.__name__)
         fn()
     print()

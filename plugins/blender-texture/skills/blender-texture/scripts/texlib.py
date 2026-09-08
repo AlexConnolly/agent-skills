@@ -124,8 +124,18 @@ class Graph:
         return n.outputs['Distance']
 
     def mask_height(self, lo, hi, invert=False):
-        """A gradient in world Z. A damp plinth at the foot of a wall, snow on
-        the tops, tide marks — anything gravity or weather decides."""
+        """A gradient in world Z: 0 at `lo`, 1 at `hi`, clamped outside both.
+
+        Read that clamp carefully, because the obvious call is the wrong one.
+        `mask_height(0, 2.5)` is 1 for the *entire wall above 2.5 m*, not a
+        band across the bottom — so a damp plinth is:
+
+            damp = g.mask_height(0.0, 2.5, invert=True)   # 1 at the foot
+
+        Getting this backwards produces a mask covering ninety percent of the
+        model, which looks like the material is broken rather than the
+        placement. Check the coverage number in the mask view: a plinth on a
+        12 m wall should be reporting something like 20 percent, not 90."""
         geo = self.node('ShaderNodeNewGeometry')
         sep = self.node('ShaderNodeSeparateXYZ')
         self.link(geo.outputs['Position'], sep.inputs['Vector'])
@@ -206,6 +216,67 @@ class Graph:
         m.clamp = True
         return m.outputs['Result']
 
+    def mask_cells(self, cell=(0.5, 0.5, 0.5), seed=0.0):
+        """A different random value per grid cell, constant within the cell.
+
+        Brick, ashlar, tile, planks, paving, panels, scales — anything laid out
+        in units where each unit is a slightly different tone. Per-unit tonal
+        variation is usually the single thing that stops a repeated surface
+        reading as one flat expanse.
+
+        Position is snapped to the cell size and hashed, so the value is
+        genuinely constant across each cell rather than a gradient that happens
+        to look blocky."""
+        sep = self.node('ShaderNodeSeparateXYZ')
+        self.link(self.coords().outputs['Object'], sep.inputs['Vector'])
+        comb = self.node('ShaderNodeCombineXYZ')
+        for axis, size in zip('XYZ', cell):
+            d = self.node('ShaderNodeMath', operation='DIVIDE')
+            self.link(sep.outputs[axis], d.inputs[0])
+            d.inputs[1].default_value = max(1e-6, size)
+            f = self.node('ShaderNodeMath', operation='FLOOR')
+            self.link(d.outputs['Value'], f.inputs[0])
+            self.link(f.outputs['Value'], comb.inputs[axis])
+        wn = self.node('ShaderNodeTexWhiteNoise', noise_dimensions='4D')
+        self.link(comb.outputs['Vector'], wn.inputs['Vector'])
+        if 'W' in wn.inputs:
+            wn.inputs['W'].default_value = seed
+        return wn.outputs['Value']
+
+    def mask_courses(self, height=0.3, length=0.9, mortar=0.03, offset=0.5,
+                     bias=0.0):
+        """Coursed masonry: the joint lines, and a per-block random tone.
+
+        Returns `(joints, blocks)` — `joints` is 1 in the mortar and 0 on the
+        block face, `blocks` is a different value per block. Layer a slightly
+        recessed, darker colour with `joints` and vary the base tone with
+        `blocks`.
+
+        Works for brick, ashlar, tiling, and with `offset=0` for stack bond or
+        panelling."""
+        n = self.node('ShaderNodeTexBrick')
+        n.offset = offset
+        n.squash = 1.0
+        n.inputs['Scale'].default_value = 1.0
+        n.inputs['Mortar Size'].default_value = mortar
+        n.inputs['Bias'].default_value = bias
+        n.inputs['Brick Width'].default_value = length
+        n.inputs['Row Height'].default_value = height
+        n.inputs['Color1'].default_value = (0.0, 0.0, 0.0, 1.0)
+        n.inputs['Color2'].default_value = (1.0, 1.0, 1.0, 1.0)
+        n.inputs['Mortar'].default_value = (0.5, 0.5, 0.5, 1.0)
+        # The brick node lays its pattern in the XY plane, so a wall standing in
+        # Z needs the coordinates turned on their side or the courses run flat
+        # across the ground instead of up the wall.
+        sep = self.node('ShaderNodeSeparateXYZ')
+        self.link(self.coords().outputs['Object'], sep.inputs['Vector'])
+        comb = self.node('ShaderNodeCombineXYZ')
+        self.link(sep.outputs['X'], comb.inputs['X'])
+        self.link(sep.outputs['Z'], comb.inputs['Y'])
+        self.link(sep.outputs['Y'], comb.inputs['Z'])
+        self.link(comb.outputs['Vector'], n.inputs['Vector'])
+        return n.outputs['Fac'], n.outputs['Color']
+
     # ------------------------------------------------------------ combining
 
     def mul(self, *sockets):
@@ -227,6 +298,57 @@ class Graph:
             self.link(s, n.inputs[1])
             out = n.outputs['Value']
         return out
+
+    def fmax(self, *sockets):
+        """Union of masks, and usually what you want instead of `mul`.
+
+        Multiplying four independent 0..1 fields gives an average around 0.06,
+        so a mask built by intersecting everything is almost always invisible —
+        the classic "nothing happens" first pass. Reach for `mul` when a
+        condition genuinely must hold everywhere at once (low AND shaded), and
+        `fmax` when any of several places will do."""
+        out = sockets[0]
+        for s in sockets[1:]:
+            n = self.node('ShaderNodeMath', operation='MAXIMUM')
+            self.link(out, n.inputs[0])
+            self.link(s, n.inputs[1])
+            out = n.outputs['Value']
+        return out
+
+    def fmin(self, *sockets):
+        out = sockets[0]
+        for s in sockets[1:]:
+            n = self.node('ShaderNodeMath', operation='MINIMUM')
+            self.link(out, n.inputs[0])
+            self.link(s, n.inputs[1])
+            out = n.outputs['Value']
+        return out
+
+    def fmix(self, a, b, fac):
+        """Blend two scalars. `layer()` only mixes colours."""
+        n = self.node('ShaderNodeMix', data_type='FLOAT')
+        self.link(fac, self._in(n, 'Factor'))
+        for socket, value in ((self._in(n, 'A'), a), (self._in(n, 'B'), b)):
+            if isinstance(value, (int, float)):
+                socket.default_value = float(value)
+            else:
+                self.link(value, socket)
+        return self._out(n)
+
+    def remap(self, socket, lo=0.0, hi=1.0, out_lo=0.0, out_hi=1.0):
+        """Rescale a mask, input range AND output range.
+
+        `ramp` only sets the input range, so there was no way to say "this
+        never goes above 0.4" without hand-building a multiply. Driving
+        roughness or a subtle tint usually wants exactly that."""
+        m = self.node('ShaderNodeMapRange')
+        self.link(socket, m.inputs['Value'])
+        m.inputs['From Min'].default_value = lo
+        m.inputs['From Max'].default_value = hi
+        m.inputs['To Min'].default_value = out_lo
+        m.inputs['To Max'].default_value = out_hi
+        m.clamp = True
+        return m.outputs['Result']
 
     def ramp(self, socket, lo=0.0, hi=1.0, gamma=1.0):
         """Tighten or loosen a mask. `gamma` above 1 shrinks it toward the
