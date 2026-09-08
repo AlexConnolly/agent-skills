@@ -27,6 +27,9 @@ that is invisible in the source. These all read perfectly as Python —
   uses
 - a part origin off the joint, so a limb swings from the elbow instead of the
   shoulder
+- an element that photographs correctly but was never actually built — a
+  cottage whose walls collapsed to a single plane, still drawing a plausible
+  house from every angle because its window frames and roof were fine
 - a model built that already existed twice in the codebase
 
 None of them are subtle once you see a picture. So: render, and look, every
@@ -66,21 +69,52 @@ time.
      that only works at nine hundred pixels is the wrong model.
    - `three_quarter.png` — perspective. Where a bad join is easiest to see.
 
-6. **Say what is wrong out loud before you fix it.** Name the specific defect
-   in the specific view: "the balusters read as a solid wall in
-   `iso_12px_x14.png`, so the gallery loses its gap" — not "it looks a bit
-   off".
+6. **Audit the brief item by item, before you form any opinion of the model
+   as a whole.**
 
-7. **Edit, do not rewrite.** Change the part that is wrong. Regenerating the
+   Write out the brief's required elements as a list. For each one, name the
+   render that proves it is present *and actually built*, and say what you can
+   see there. Not "wheelhouse ✓" — what the pixels show.
+
+   > *a keeper's cottage at the foot of the tower* — `side.png`: the walls are
+   > a single plane with no thickness. The window frames, base course and roof
+   > still draw a plausible house from every angle, which is why four passes
+   > missed it. **Fails.**
+
+   That one is real, and it is the shape of the problem: a building with no
+   walls that photographs perfectly well.
+
+   This step exists because the open question does not work. "What is wrong
+   with this?" is anchored by the overall impression, and once the overall
+   impression is "good model" it returns cosmetic notes — the thickness of a
+   mast, the colour of a crate — while an entire absent structure goes
+   unmentioned. You are also the worst-placed reader of your own model: having
+   written a function called `cottage()`, you perceive a cottage.
+
+   A closed question about one element cannot be dodged that way. "Do the
+   cottage walls have thickness in `top.png`?" has an answer.
+
+   Two things follow. First, the render that shows the fault is usually
+   already in the contact sheet and has been there every pass — the failure is
+   not missing information, it is not interrogating it. Second, when a picture
+   and a measurement disagree, believe the measurement and go back for a
+   better picture. A confident reading of a render is still a reading.
+
+7. **Then say what else is wrong**, in the specific view: "the balusters read
+   as a solid wall in `iso_12px_x14.png`, so the gallery loses its gap" — not
+   "it looks a bit off".
+
+8. **Edit, do not rewrite.** Change the part that is wrong. Regenerating the
    whole function produces a different object that is wrong in a new way, and
    you lose whatever was already right.
 
-8. **Go back to 4. Five passes minimum**, and do not count a pass in which you
-   did not open a render. Stop when the silhouette reads, the proportions
-   against the figure are what you wrote down in step 2, and you have run out
-   of specific defects to name — not when you have run out of patience.
+9. **Go back to 4. Five passes minimum**, and do not count a pass in which you
+   did not open a render. Stop when every item in the step 6 audit passes,
+   the silhouette reads, the proportions against the figure are what you wrote
+   down in step 2, and you have run out of specific defects to name — not when
+   you have run out of patience.
 
-9. **Check it in place.** A model that is fine alone is often wrong in the
+10. **Check it in place.** A model that is fine alone is often wrong in the
    world: too big for the space, clipping its neighbours, sunk in the terrain.
    Wire it up and look, or say plainly that you could not and that it still
    needs an in-world check.
