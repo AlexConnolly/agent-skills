@@ -301,6 +301,41 @@ def revolve(name, outline, segments=48, close_outline=True, smooth=None,
                    smooth=True if smooth is None else smooth)
 
 
+def path_frames(path):
+    """The orientation of a path at each of its points.
+
+    Returns [(origin, right, up, tangent), ...]. Sweeping is only half the
+    problem: anything attached to a swept form — a limb on a body, a fitting on
+    a pipe — needs to know which way the surface faces there, and without this
+    every caller ends up reimplementing the framing maths from `profile`."""
+    out = []
+    for i, p in enumerate(path):
+        nxt = path[min(i + 1, len(path) - 1)]
+        prv = path[max(i - 1, 0)]
+        t = mathutils.Vector((nxt[0] - prv[0], nxt[1] - prv[1], nxt[2] - prv[2]))
+        if t.length < 1e-9:
+            t = mathutils.Vector((1.0, 0.0, 0.0))
+        t.normalize()
+        up = mathutils.Vector((0.0, 0.0, 1.0))
+        r = t.cross(up)
+        if r.length < 1e-6:
+            # The path is running straight up, so it is parallel to the
+            # reference and the cross product collapses. Falling back to a
+            # fixed axis is not enough on its own: neighbouring rings then pick
+            # DIFFERENT fallbacks as the tangent wobbles either side of
+            # vertical, the frame snaps forty-five degrees between them, and
+            # the sweep shows a hard bright pinch partway along. Carrying the
+            # previous frame forward keeps it continuous.
+            r = (out[-1][1] if out else mathutils.Vector((0.0, 1.0, 0.0)))
+            r = r - t * r.dot(t)
+            if r.length < 1e-6:
+                r = mathutils.Vector((1.0, 0.0, 0.0))
+        r.normalize()
+        u = r.cross(t)
+        out.append((mathutils.Vector(p), r, u, t))
+    return out
+
+
 def profile(name, section, path, close=False, smooth=None, scales=None):
     """Sweep a 2D section along a 3D path: handrails, pipes, cables, gutters.
 
@@ -309,33 +344,22 @@ def profile(name, section, path, close=False, smooth=None, scales=None):
 
     `scales`, one factor per path point, tapers the section as it goes — a
     tail, a horn, a rope under tension. Without it the sweep is a constant
-    hose, which is right for a handrail and wrong for anything that grew."""
+    hose, which is right for a handrail and wrong for anything that grew: a
+    constant-radius sweep IS a pipe cleaner, and that is the whole failure
+    mode of a swept tree."""
     obj, mesh = _new(name)
     bm = bmesh.new()
     rings = []
-    for i, (px, py, pz) in enumerate(path):
-        nxt = path[min(i + 1, len(path) - 1)]
-        prv = path[max(i - 1, 0)]
-        tx, ty, tz = (nxt[0] - prv[0], nxt[1] - prv[1], nxt[2] - prv[2])
-        tl = math.sqrt(tx * tx + ty * ty + tz * tz) or 1.0
-        tx, ty, tz = tx / tl, ty / tl, tz / tl
-        # The section is framed against world up. A path that loops over
-        # vertical needs a parallel transport frame instead; this will twist.
-        ux, uy, uz = 0.0, 0.0, 1.0
-        rx, ry, rz = ty * uz - tz * uy, tz * ux - tx * uz, tx * uy - ty * ux
-        rl = math.sqrt(rx * rx + ry * ry + rz * rz)
-        if rl < 1e-6:
-            rx, ry, rz, rl = 0.0, 1.0, 0.0, 1.0
-        rx, ry, rz = rx / rl, ry / rl, rz / rl
-        ux, uy, uz = ry * tz - rz * ty, rz * tx - rx * tz, rx * ty - ry * tx
+    # Shares path_frames() rather than framing inline, so the fix for
+    # near-vertical paths applies here too. Three separate models hit that
+    # before these were unified: a smoke plume with a bright pinch a third of
+    # the way up, and a tree trunk that barber-poled because a path wandering
+    # +x then -y then +x spun the section through half a turn.
+    for i, (origin, right, up, _t) in enumerate(path_frames(path)):
         k = 1.0 if scales is None else scales[min(i, len(scales) - 1)]
         ring = []
         for (sa, sb) in section:
-            sa, sb = sa * k, sb * k
-            ring.append(bm.verts.new((
-                px + rx * sa + ux * sb,
-                py + ry * sa + uy * sb,
-                pz + rz * sa + uz * sb)))
+            ring.append(bm.verts.new(origin + right * (sa * k) + up * (sb * k)))
         rings.append(ring)
     n = len(section)
     for i in range(len(rings) - 1):
@@ -616,39 +640,6 @@ def text(name, body, size=0.1, depth=0.01, align='CENTER', loc=(0, 0, 0),
     return obj
 
 
-def path_frames(path):
-    """The orientation of a path at each of its points.
-
-    Returns [(origin, right, up, tangent), ...]. Sweeping is only half the
-    problem: anything attached to a swept form — a limb on a body, a fitting on
-    a pipe — needs to know which way the surface faces there, and without this
-    every caller ends up reimplementing the framing maths from `profile`."""
-    out = []
-    for i, p in enumerate(path):
-        nxt = path[min(i + 1, len(path) - 1)]
-        prv = path[max(i - 1, 0)]
-        t = mathutils.Vector((nxt[0] - prv[0], nxt[1] - prv[1], nxt[2] - prv[2]))
-        if t.length < 1e-9:
-            t = mathutils.Vector((1.0, 0.0, 0.0))
-        t.normalize()
-        up = mathutils.Vector((0.0, 0.0, 1.0))
-        r = t.cross(up)
-        if r.length < 1e-6:
-            # The path is running straight up, so it is parallel to the
-            # reference and the cross product collapses. Falling back to a
-            # fixed axis is not enough on its own: neighbouring rings then pick
-            # DIFFERENT fallbacks as the tangent wobbles either side of
-            # vertical, the frame snaps forty-five degrees between them, and
-            # the sweep shows a hard bright pinch partway along. Carrying the
-            # previous frame forward keeps it continuous.
-            r = (out[-1][1] if out else mathutils.Vector((0.0, 1.0, 0.0)))
-            r = r - t * r.dot(t)
-            if r.length < 1e-6:
-                r = mathutils.Vector((1.0, 0.0, 0.0))
-        r.normalize()
-        u = r.cross(t)
-        out.append((mathutils.Vector(p), r, u, t))
-    return out
 
 
 def sweep(name, path, sections, close=False, smooth=None):
