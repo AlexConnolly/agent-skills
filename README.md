@@ -48,6 +48,24 @@ sheet renderer.
 **Needs:** [Blender](https://www.blender.org/download/) 4.x or 5.x on `PATH`.
 No Python packages — everything runs inside Blender's bundled interpreter.
 
+#### What it is not
+
+**Not a photoreal pipeline.** Every surface is one flat PBR colour. There are
+no UVs, no textures, no normal or roughness maps, no vertex colours, no scatter
+or particle system, no displacement modifier, and the contact sheet is lit by a
+single sun rather than an HDRI.
+
+That is a hard ceiling on *surface* realism, and it is worth being clear about
+what falls on the far side of it: leather, rust, moss, wood grain, dirt and
+wear are surface qualities, and this toolkit has no concept of a surface beyond
+its colour.
+
+What it is good at is **form** — hard-surface, architectural, modular,
+parametric geometry. Game props, vehicles, buildings, scenery, and blockouts to
+take into a texturing pipeline. Irregularity and decay can be expressed
+*geometrically* through `Form.warp()` — a slumped wall line, crenellations
+eroded to uneven stumps — but not as weathering on a surface.
+
 → [Full documentation](plugins/blender-model/) · [API reference](plugins/blender-model/skills/blender-model/reference.md)
 
 ---

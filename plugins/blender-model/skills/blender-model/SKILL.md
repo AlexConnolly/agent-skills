@@ -105,6 +105,32 @@ architectural, primitive-assembly geometry and weak at organic form. Chunky
 low-poly, vehicles, buildings and props are squarely in the first category. Do
 not try to sculpt a face.
 
+## What this toolkit cannot do
+
+Know this before you start, so you do not spend passes discovering it:
+
+- **No UVs and no textures.** Every surface is one flat PBR colour. There are
+  no normal, roughness or albedo maps and no vertex colours.
+- **No scatter, particle system or geometry nodes.** Instancing is a `for`
+  loop placing real meshes.
+- **No displacement or subdivision modifiers.** Shaping is destructive bmesh
+  work: `warp`, `taper`, `bend`, `cut_at`, `bevel`.
+- **No HDRI or global illumination** in the contact sheet. One sun, one flat
+  sky, tuned for reading a silhouette rather than for a beauty render.
+
+So **photorealism is out of scope**, and so is anything whose character lives
+in its surface rather than its shape — leather, rust, moss, wood grain, dirt,
+wear. If a brief asks for those, say so plainly and build the form well; what
+you are producing is either a stylised asset or a blockout for a texturing
+pipeline, and both are worth doing properly.
+
+Irregularity and decay *can* be expressed geometrically. `Form.warp()` takes an
+arbitrary per-vertex function, so a slumped wall line, a bowed tower or
+crenellations eroded to uneven stumps are all reachable — deterministic
+pseudo-noise from the coordinates keeps them reproducible. `repaint()` takes a
+`(centre, normal)` test, so surfaces that face a particular way can take a
+different colour. That is the honest extent of it.
+
 ## What is in the toolkit
 
 `scripts/`, all documented in [reference.md](reference.md):
