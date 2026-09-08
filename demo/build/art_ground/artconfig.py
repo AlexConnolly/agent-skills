@@ -8,19 +8,26 @@
 # See demo/ART-DIRECTION.md §4.1 for the camera these numbers come from.
 import os
 import math
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
+# demo/build/art_ground -> demo/build -> demo -> the repository root, which is
+# where the published site lives.
+REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 
 
 # ---------------------------------------------------------------- where things go
 
-OUT = os.environ.get('ART_OUT') or os.path.join(ROOT, '..', 'docs', 'models')
-SHOTS = os.environ.get('ART_SHOTS') or os.path.join(HERE, 'shots')
+OUT = os.environ.get('ART_OUT') or os.path.join(REPO, 'docs', 'assets')
+# Contact sheets are working material, not repository content, so the default
+# is a temp directory. ART_SHOTS overrides it.
+SHOTS = os.environ.get('ART_SHOTS') or os.path.join(
+    tempfile.gettempdir(), 'march-castle-shots')
 
 # terrain.json — the one source of truth for ground height, sampled by the
 # placement code so nothing floats. §6.3.
-DATA = os.environ.get('ART_DATA') or os.path.join(ROOT, '..', 'docs', 'data')
+DATA = os.environ.get('ART_DATA') or os.path.join(REPO, 'docs', 'data')
 
 
 # ---------------------------------------------------------------- scale
