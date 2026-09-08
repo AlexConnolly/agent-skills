@@ -306,6 +306,52 @@ def test_fuse_removes_the_interior_wall():
     bm.free()
 
 
+def test_revolve_makes_a_closed_shell():
+    """A goblet outline - up the outside, over the rim, down the inside -
+    revolved must give a real thin-walled shell, not a solid lump."""
+    lib.reset()
+    outline = [(0.20, 0.00), (0.45, 0.00), (0.45, 0.60), (0.40, 0.60),
+               (0.40, 0.05), (0.20, 0.05)]
+    o = lib.revolve('bowl', outline, segments=24)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    openings = [e for e in bm.edges if len(e.link_faces) < 2]
+    check('revolve is closed', not openings,
+          '%d boundary edges' % len(openings))
+    bm.free()
+    zs = [v.co.z for v in o.data.vertices]
+    xs = [v.co.x for v in o.data.vertices]
+    check('revolve spans the outline height', abs(max(zs) - 0.60) < 1e-4,
+          'top at %.3f' % max(zs))
+    check('revolve spans the outline radius', abs(max(xs) - 0.45) < 1e-3,
+          'radius %.3f' % max(xs))
+
+
+def test_revolve_welds_an_axis_pole():
+    lib.reset()
+    o = lib.revolve('cone', [(0.0, 1.0), (0.5, 0.0)], segments=16,
+                    close_outline=False)
+    axis = [v for v in o.data.vertices
+            if v.co.x ** 2 + v.co.y ** 2 < 1e-8]
+    check('revolve welds the axis pole to one vertex', len(axis) == 1,
+          '%d vertices on the axis' % len(axis))
+
+
+def test_profile_scales_taper_the_sweep():
+    lib.reset()
+    path = [(x * 0.5, 0, 0) for x in range(5)]
+    o = lib.profile('tail', lib.circle_section(0.2, 8), path,
+                    scales=[1.0, 0.75, 0.5, 0.25, 0.05])
+    near = [v for v in o.data.vertices if v.co.x < 0.01]
+    far = [v for v in o.data.vertices if v.co.x > 1.99]
+    def radius(vs):
+        return max((v.co.y ** 2 + v.co.z ** 2) ** 0.5 for v in vs)
+    check('profile scales taper the section',
+          radius(near) > radius(far) * 4,
+          'start %.3f, end %.3f' % (radius(near), radius(far)))
+
+
 def main():
     for fn in (test_size_is_full_extent,
                test_cut_at_preserves_the_mesh,
@@ -322,7 +368,10 @@ def main():
                test_export_reports_ground_contact,
                test_bounds_are_tight_for_a_rotated_object,
                test_boolean_cuts_a_hole_and_stays_closed,
-               test_fuse_removes_the_interior_wall):
+               test_fuse_removes_the_interior_wall,
+               test_revolve_makes_a_closed_shell,
+               test_revolve_welds_an_axis_pole,
+               test_profile_scales_taper_the_sweep):
         print('--- %s' % fn.__name__)
         fn()
     print()

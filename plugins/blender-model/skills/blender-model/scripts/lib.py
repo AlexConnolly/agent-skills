@@ -252,11 +252,63 @@ def torus(name, r_major, r_minor, loc=(0, 0, 0), rot=(0, 0, 0),
 # sweep or a loft. Stating the sections is shorter and more accurate than
 # pulling the shape out of a box.
 
-def profile(name, section, path, close=False, smooth=None):
+def revolve(name, outline, segments=48, close_outline=True, smooth=None,
+            arc=math.tau):
+    """Spin a 2D outline around the Z axis.
+
+    `outline` is [(r, z), ...] — radius out from the axis, height up it. The
+    natural way to describe anything turned on a lathe: a goblet, a bottle, a
+    finial, a wheel hub, a column base.
+
+    With `close_outline` the outline is treated as a closed loop, so an outline
+    that goes up the outside of a bowl, over the rim and back down the inside
+    produces a real thin-walled shell rather than a solid lump. A point at
+    r=0 becomes a pole and is welded.
+
+    `arc` less than a full turn leaves it open, for a section cut away."""
+    obj, mesh = _new(name)
+    bm = bmesh.new()
+    full = abs(arc - math.tau) < 1e-9
+    rings = []
+    steps = segments if full else segments + 1
+    for i in range(steps):
+        a = (i / segments) * arc
+        ca, sa = math.cos(a), math.sin(a)
+        rings.append([bm.verts.new((r * ca, r * sa, z)) for (r, z) in outline])
+    n = len(outline)
+    last = len(rings) if full else len(rings) - 1
+    for i in range(last):
+        r0 = rings[i]
+        r1 = rings[(i + 1) % len(rings)]
+        for j in range(n if close_outline else n - 1):
+            k = (j + 1) % n
+            quad = (r0[j], r0[k], r1[k], r1[j])
+            # A point on the axis is the same vertex on every ring, so the
+            # quad there collapses to a triangle; remove_doubles below welds
+            # it and bmesh will not accept the degenerate face meanwhile.
+            if len({v.co.to_tuple(5) for v in quad}) < 3:
+                continue
+            try:
+                bm.faces.new(quad)
+            except ValueError:
+                pass
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    return _finish(obj, mesh, (0, 0, 0), (0, 0, 0),
+                   smooth=True if smooth is None else smooth)
+
+
+def profile(name, section, path, close=False, smooth=None, scales=None):
     """Sweep a 2D section along a 3D path: handrails, pipes, cables, gutters.
 
     `section` is [(a, b), ...] in the plane perpendicular to the path;
-    `path` is [(x, y, z), ...]."""
+    `path` is [(x, y, z), ...].
+
+    `scales`, one factor per path point, tapers the section as it goes — a
+    tail, a horn, a rope under tension. Without it the sweep is a constant
+    hose, which is right for a handrail and wrong for anything that grew."""
     obj, mesh = _new(name)
     bm = bmesh.new()
     rings = []
@@ -275,8 +327,10 @@ def profile(name, section, path, close=False, smooth=None):
             rx, ry, rz, rl = 0.0, 1.0, 0.0, 1.0
         rx, ry, rz = rx / rl, ry / rl, rz / rl
         ux, uy, uz = ry * tz - rz * ty, rz * tx - rx * tz, rx * ty - ry * tx
+        k = 1.0 if scales is None else scales[min(i, len(scales) - 1)]
         ring = []
         for (sa, sb) in section:
+            sa, sb = sa * k, sb * k
             ring.append(bm.verts.new((
                 px + rx * sa + ux * sb,
                 py + ry * sa + uy * sb,

@@ -118,7 +118,8 @@ rim — the hole is most of what reads.
 
 | Function | Notes |
 |---|---|
-| `profile(name, section, path, close=False)` | Sweep a 2D section along a 3D path. Handrails, pipes, cables, gutters. The section is framed against world up, so a path that loops over vertical will twist. |
+| `profile(name, section, path, close=False, scales=None)` | Sweep a 2D section along a 3D path. Handrails, pipes, cables, gutters. `scales`, one factor per path point, tapers it — a tail, a horn, a rope under tension; without it the sweep is a constant hose. The section is framed against world up, so a path that loops over vertical will twist. |
+| `revolve(name, outline, segments=48, close_outline=True, arc=τ)` | Spin a 2D outline round Z. `outline` is `[(r, z), …]`. Anything turned on a lathe — a goblet, a bottle, a finial, a column base. With `close_outline`, an outline that runs up the outside, over a rim and back down the inside gives a real thin-walled shell rather than a solid. A point at `r=0` becomes a welded pole. |
 | `loft(name, stations, cap_ends=True)` | Sweep a *changing* closed section along X. `stations` is `[(x, [(y, z), …]), …]`, same point count and winding at every station. |
 | `circle_section(r, segments)` · `rect_section(w, h)` | Section helpers. |
 
