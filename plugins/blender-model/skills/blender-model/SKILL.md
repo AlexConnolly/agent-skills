@@ -49,18 +49,41 @@ was already correct.
 
 ## What to put in the brief
 
-The agent knows the loop. It does not know your intent. Give it:
+The agent knows the loop. It does not know your intent, and it cannot infer
+your taste. **Write more than you think you need to.** A paragraph gets you a
+generic object; a detailed brief with a named art style and an explicit feature
+list gets you the thing you were picturing.
 
-- **What the thing is, in one line**, and what it has to communicate. "A tent.
-  It has to say soldiers live here, not that a keep was built here."
-- **How big, against a person.** Say "waist high" or "twice a man at the
-  ridge", not a number you guessed. If the project has a real figure height,
-  say what it is and where it is defined.
+This is not just a quality nicety. The agent's critique step audits the brief
+one required element at a time, so **a brief with no feature list gives the
+audit nothing to check** — and a model whose missing parts nobody enumerated is
+exactly the model that ships with a wall or a cabin absent.
+
+Give it:
+
+- **What the thing is, and what it has to communicate.** "A tent. It has to say
+  soldiers live here, not that a keep was built here." The second half is the
+  part that does the work.
+- **The art style, named.** Faceted low-poly read from a distance, or formed
+  and smooth-shaded at arm's length? Stylised or accurate? Say what it should
+  look like *as art* — a period, a game, a reference, a palette — not just what
+  object it is. "A real Welsh castle, not a fantasy one" is worth a paragraph
+  of adjectives.
+- **The features you expect to see, as a list.** Name them. "A wall-walk with
+  crenellations, a gatehouse, three towers of differing condition, a keep."
+  Each becomes a line the agent must prove against a named render before it is
+  allowed to stop.
+- **How big, against a person.** "Waist high", "twice a man at the ridge" — not
+  a number you guessed. If the project has a real figure height, say what it is
+  and where it is defined.
 - **Where it goes** — placed by hand, scattered, carried, instanced in its
   hundreds — and what it will sit next to.
 - **The camera it is read from.** Detail below a fifth of a figure is wasted on
-  a model seen from a long way up.
-- **Anything it must not be.** "Not a keep." "Not another woodpile."
+  a model seen from a long way up, and the defaults in `artconfig.py` assume a
+  distant one.
+- **Anything it must not be.** "Not a keep." "Not another woodpile." "Not a
+  bathtub — if the topsides come out as parallel slab sides, keep working."
+  Naming the failure mode is the single most effective line in a brief.
 
 ## What the loop is
 

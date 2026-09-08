@@ -45,6 +45,13 @@ time.
    should be relative to a person before you start: "waist high", "twice a man
    at the ridge". You will check this against a render later.
 
+   **Write out the feature list now, before any geometry.** Take the elements
+   the brief names, and if the brief is thin, add the ones the object obviously
+   needs and say so. This list is what step 6 audits you against, so a vague
+   brief you did not sharpen becomes an audit that checks nothing. Note the art
+   style too — faceted and distant, or formed and close up — because it decides
+   `SMOOTH_DEFAULT`, `CYL_SEGMENTS` and how you spend your triangles.
+
 3. **Author the build script** against `lib.py` and `boxmodel.py`. Blender is
    **Z-up**: heights go in Z. Match the idiom of the scripts already there.
    - Grow a `Form` when the surface is continuous.
