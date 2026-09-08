@@ -144,14 +144,19 @@ class Form:
                      if (e.verts[0].co[i] - p) * (e.verts[1].co[i] - p) < -1e-9]
             if not edges:
                 continue
-            before = set(self.bm.verts)
-            bmesh.ops.subdivide_edges(self.bm, edges=edges, cuts=1,
-                                      use_grid_fill=True)
+            res = bmesh.ops.subdivide_edges(self.bm, edges=edges, cuts=1,
+                                            use_grid_fill=True)
             self.bm.verts.ensure_lookup_table()
             # subdivide puts the new ring at the midpoint; snap it onto the
             # requested station.
-            for v in self.bm.verts:
-                if v not in before:
+            #
+            # Take the new vertices from the operator's own return value. The
+            # obvious alternative — diffing the vertex set against one captured
+            # beforehand — silently destroys the mesh: subdivide_edges
+            # invalidates the old BMVert wrappers, so every vertex tests as new
+            # and the snap flattens the whole form onto the station.
+            for v in res.get('geom_inner', ()):
+                if isinstance(v, bmesh.types.BMVert):
                     v.co[i] = p
         return self
 

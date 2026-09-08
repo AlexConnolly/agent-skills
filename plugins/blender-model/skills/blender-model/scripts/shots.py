@@ -59,9 +59,14 @@ def setup_render():
         pass
 
 
-def world_colour(hex_value, strength=0.85):
+def world_colour(hex_value, strength=0.85, name='shotworld'):
     # read_factory_settings(use_empty=True) leaves scene.world as None.
-    w = bpy.data.worlds.get('shotworld') or bpy.data.worlds.new('shotworld')
+    #
+    # `name` exists so a caller that needs a different sky temporarily gets its
+    # own datablock. Reusing one and recolouring it would mutate the sky every
+    # other shot is rendered against, and putting the original back on the
+    # scene afterwards would not undo it.
+    w = bpy.data.worlds.get(name) or bpy.data.worlds.new(name)
     bpy.context.scene.world = w
     w.use_nodes = True
     bg = w.node_tree.nodes['Background']
@@ -309,18 +314,26 @@ class Silhouette:
             em.inputs['Strength'].default_value = 1.0
             nt.links.new(em.outputs['Emission'], out.inputs['Surface'])
         for o in self.objs:
-            self.stash.append((o, list(o.data.materials)))
+            # Emptying the slot list zeroes every polygon's material_index, and
+            # refilling it does not put them back — so the per-face assignments
+            # have to be stashed alongside the slots or every multi-material
+            # object comes out of here painted entirely in its first material,
+            # for every shot rendered after this one.
+            self.stash.append((o, list(o.data.materials),
+                               [p.material_index for p in o.data.polygons]))
             o.data.materials.clear()
             o.data.materials.append(m)
         self.world = bpy.context.scene.world
-        world_colour(0xFFFFFF, strength=1.0)
+        world_colour(0xFFFFFF, strength=1.0, name='shotworld_silhouette')
         return self
 
     def __exit__(self, *exc):
-        for o, mats in self.stash:
+        for o, mats, indices in self.stash:
             o.data.materials.clear()
             for m in mats:
                 o.data.materials.append(m)
+            for p, i in zip(o.data.polygons, indices):
+                p.material_index = i
         bpy.context.scene.world = self.world
         return False
 
@@ -425,4 +438,8 @@ def main():
     print('SHEET   %s' % out)
 
 
-main()
+# Guarded so the module can be imported — by a test, or by a project that wants
+# the camera and lighting helpers with a different shot list. Blender's
+# --python runs a script as __main__, so the CLI behaviour is unchanged.
+if __name__ == '__main__':
+    main()
