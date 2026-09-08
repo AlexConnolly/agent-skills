@@ -524,9 +524,10 @@ def tree_hawthorn(timber, _evergreen):
     # into the wind for two hundred years.
     LEAN, Z0, Z1 = 1.05, 0.12, 4.4
 
-    bole = [(0.0, 0.0, 0.0), (0.11, 0.08, 0.30), (0.04, -0.10, 0.66),
-            (0.18, 0.02, 1.05), (0.12, 0.13, 1.55)]
-    parts.append(stem('haw_bole', bole, [0.235, 0.180, 0.166, 0.154, 0.144], 6))
+    bole = [(0.0, 0.0, 0.0), (0.05, 0.04, 0.17), (0.11, 0.08, 0.42),
+            (0.04, -0.10, 0.78), (0.18, 0.02, 1.14), (0.12, 0.13, 1.55)]
+    parts.append(stem('haw_bole', bole,
+                      [0.300, 0.222, 0.184, 0.168, 0.154, 0.144], 6))
 
     def bole_at(z):
         for i in range(len(bole) - 1):
@@ -544,7 +545,7 @@ def tree_hawthorn(timber, _evergreen):
         az = i * TAU / 6.0 + rng.uniform(-0.34, 0.34)
         el = math.radians((18, 58, 34, 66, 26, 48)[i] + rng.uniform(-7, 7))
         p0 = bole_at(0.82 + 0.145 * i + rng.uniform(-0.05, 0.05))
-        prim, path = limb('haw_p%d' % i, p0, az, el, rng.uniform(1.9, 2.6),
+        prim, path = limb('haw_p%d' % i, p0, az, el, rng.uniform(1.55, 2.10),
                           0.115, 0.052, 4, 5, rng,
                           lift_in=math.radians(26), lift_out=math.radians(-30),
                           bow=0.42, wob=0.16, power=1.1, drift=0.4)
@@ -555,7 +556,7 @@ def tree_hawthorn(timber, _evergreen):
             s_az = az + (-1.0 if j == 0 else 1.0) * rng.uniform(0.5, 1.0)
             s_el = el + math.radians(rng.uniform(-34, 16))
             sec, spath = limb('haw_s%d_%d' % (i, j), s0, s_az, s_el,
-                              rng.uniform(0.95, 1.4), 0.050, 0.024, 3, 4, rng,
+                              rng.uniform(0.78, 1.12), 0.050, 0.024, 3, 4, rng,
                               lift_in=math.radians(22), lift_out=math.radians(-26),
                               bow=0.40, wob=0.20, power=1.05, drift=0.5)
             parts.append(sec)
@@ -564,7 +565,7 @@ def tree_hawthorn(timber, _evergreen):
                 tw, _ = limb('haw_t%d_%d_%d' % (i, j, k), t0,
                              s_az + rng.uniform(-1.1, 1.1),
                              s_el + math.radians(rng.uniform(-30, 34)),
-                             rng.uniform(0.5, 0.85), 0.024, 0.010, 3, 3, rng,
+                             rng.uniform(0.42, 0.70), 0.024, 0.010, 3, 3, rng,
                              lift_in=math.radians(18), lift_out=math.radians(-20),
                              bow=0.36, wob=0.24, power=1.0, drift=0.55)
                 parts.append(tw)
@@ -601,9 +602,9 @@ def tree_yew(timber, evergreen):
     # Lobes hung off the tops of the stems and drooping outward, not centred on
     # the axis -- a yew is lopsided and its skirt hangs.
     lobes = ((0.15, -0.10, 5.30, 1.95, 1.90, 1.60),
-             (1.70, 0.70, 3.35, 1.75, 1.70, 1.35),
+             (1.75, 0.65, 2.95, 1.70, 1.65, 1.30),
              (-1.45, 1.35, 4.35, 1.60, 1.55, 1.20),
-             (0.30, -1.85, 2.95, 1.60, 1.55, 1.15),
+             (0.35, -1.80, 2.40, 1.55, 1.50, 1.15),
              (-1.20, -1.05, 5.60, 1.35, 1.30, 1.05))
     for i, (x, y, z, rx, ry, rz) in enumerate(lobes):
         mass.append(lump('yew_lobe%d' % i, (x, y, z), (rx, ry, rz),
@@ -654,28 +655,33 @@ def tree_pine(timber, evergreen):
                     lift_out=math.radians(-22), bow=0.35, wob=0.12, power=1.0)
         bare.append(s)
 
-    # Flat, well separated and thrown off the axis. The first version had
-    # `flat` at about 0.5, so every plate was half as deep as it was wide and
-    # the five of them merged into one ball on a stick. What makes a Scots pine
-    # read at 280 m is the sky between the tiers.
-    plates = ((10.30, 2.05, 0.22, 0.70, -0.50),
-              (11.50, 2.25, 0.21, -0.85, 0.40),
-              (12.55, 1.90, 0.22, 0.50, 0.75),
-              (13.55, 2.10, 0.20, -0.55, -0.60),
-              (14.40, 1.55, 0.21, 0.45, 0.30),
-              (15.05, 1.70, 0.22, -0.30, 0.15))
+    # Flat, thrown off the axis, and unevenly spaced: two small well-separated
+    # lower tiers and a broad head where the top three run together.
+    #
+    # This took two goes. At `flat` around 0.5 every plate was half as deep as
+    # it was wide and they merged into one ball on a stick, which is a lollipop.
+    # Six evenly spaced discs of the same size fixed that and silhouetted as a
+    # pagoda instead. What reads as a pine at 280 m is the sky between the
+    # lower tiers plus most of the crown carried at the top.
+    plates = ((10.20, 1.55, 0.26, 0.95, -0.60),
+              (11.70, 2.05, 0.23, -1.05, 0.35),
+              (12.90, 1.85, 0.26, 0.70, 0.95),
+              (13.90, 2.30, 0.22, -0.45, -0.75),
+              (14.85, 2.10, 0.24, 0.35, 0.45))
     for i, (z, r, flat, ox, oy) in enumerate(plates):
         base = trunk_at(z)
         cx, cy = base.x + ox, base.y + oy
         mass.append(lump('pine_plate%d' % i, (cx, cy, z), (r, r * 0.94, r * flat),
-                         relief=0.30, freq=2.0, seed=3.3 * i + 1.9))
+                         relief=0.38, freq=2.0, seed=3.3 * i + 1.9))
         # Two branches carrying each plate, so it is held out from the trunk
         # rather than skewered by it.
         for j in range(2):
             az = math.atan2(cy - base.y, cx - base.x) + (-0.7 if j else 0.7)
+            # Long enough to come out past the plate's edge. A branch that
+            # stops inside the mass leaves a disc skewered on a trunk.
             s, _ = limb('pine_b%d_%d' % (i, j), base, az,
                         math.radians(rng.uniform(-14, 6)),
-                        r * 0.85 + rng.uniform(0.0, 0.3), 0.062, 0.026, 4, 3, rng,
+                        r * 1.20 + rng.uniform(0.0, 0.35), 0.062, 0.026, 4, 3, rng,
                         lift_in=math.radians(14), lift_out=math.radians(-14),
                         bow=0.36, wob=0.12, power=1.0)
             bare.append(s)
@@ -726,8 +732,16 @@ def deadfall(timber, _evergreen):
         r = 0.74 * (1.0 + 0.32 * math.sin(a * 3.0 + 0.7) + 0.18 * math.sin(a * 5.0))
         outline.append((math.sin(a) * r, 0.60 + math.cos(a) * r * 0.95))
     outline = [(y, max(0.03, z)) for (y, z) in outline]
-    parts.append(lib.prism('dead_plate', outline, 0.22,
-                           loc=(-2.58, 0.0, 0.0), plane='yz'))
+    plate = lib.prism('dead_plate', outline, 0.22,
+                      loc=(-2.58, 0.0, 0.0), plane='yz')
+    # A clean extruded polygon reads as a slab of something sawn. Pushing the
+    # face about breaks the straight arrises, which is the difference between
+    # a root plate torn out of the ground and a wedge.
+    lib.displace(plate, lambda co, n: (
+        noise3(co.x * 3.0, co.y * 2.4, co.z * 2.4) * 0.09,
+        noise3(co.y * 2.7 + 4.0, co.z * 2.2, co.x * 3.1) * 0.13,
+        noise3(co.z * 2.5 + 8.0, co.x * 2.9, co.y * 2.6) * 0.11))
+    parts.append(plate)
 
     for i, (f, az, el, length) in enumerate(
             ((0.20, 1.35, 0.95, 1.45), (0.44, -1.75, 0.70, 1.25),
