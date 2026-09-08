@@ -389,7 +389,11 @@ def main():
     out = os.path.join(cfg.SHOTS, name)
     plan, vert = hero_extent(lo, hi)
     hero_ortho = max(plan, vert) * 1.15
-    dist = max(size * 6.0, 60.0 * cfg.UNITS_PER_M)
+    dist = getattr(cfg, 'HERO_DISTANCE', None)
+    if dist is None:
+        # Clear the geometry, but never so far that a small object under a
+        # perspective camera renders as a speck.
+        dist = max(size * 6.0, 4.0 * cfg.FIGURE_H)
     focus = (cx, cy, lo[2] + ez * 0.45)
 
     # ---- the hero set: the app's projection, four object headings ----

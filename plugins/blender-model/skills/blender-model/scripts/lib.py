@@ -419,6 +419,8 @@ def boolean(target, tool, op='DIFFERENCE', solver='EXACT', keep_tool=False,
 
     The EXACT solver expects closed input. A target with boundary edges will
     produce something, but not reliably what you asked for."""
+    before = len(target.data.polygons)
+    open_edges = _boundary_edge_count(target)
     m = target.modifiers.new('_bool', 'BOOLEAN')
     m.object = tool
     m.operation = op
@@ -436,7 +438,27 @@ def boolean(target, tool, op='DIFFERENCE', solver='EXACT', keep_tool=False,
     bpy.data.meshes.remove(old)
     if not keep_tool:
         bpy.data.objects.remove(tool, do_unlink=True)
+    # A boolean against a mesh with holes in it does not fail, it quietly does
+    # nothing — and a no-op that looks like success costs a whole pass before
+    # anyone notices the window was never cut.
+    if len(target.data.polygons) == before:
+        print('WARNING boolean %s on %r changed nothing (%d faces before and '
+              'after)' % (op, target.name, before))
+        if open_edges:
+            print('        the target has %d boundary edges; the EXACT solver '
+                  'needs a closed surface' % open_edges)
+        else:
+            print('        check the tool actually overlaps the target')
     return target
+
+
+def _boundary_edge_count(obj):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    n = len([e for e in bm.edges if len(e.link_faces) < 2])
+    bm.free()
+    return n
 
 
 def cut(target, tool, **kw):

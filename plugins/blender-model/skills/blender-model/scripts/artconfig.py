@@ -55,6 +55,13 @@ HERO_AZIMUTH_DEG = 45.0
 HERO_ORTHOGRAPHIC = True
 HERO_LENS = 45.0
 
+# How far the hero camera stands off, in world units. None derives it from the
+# model's size. Under an orthographic camera distance only has to clear the
+# geometry, so a large floor is harmless; under a PERSPECTIVE one it sets the
+# framing, and a floor of 60 renders a 200 mm object about four pixels tall.
+# Set it explicitly for anything much smaller or larger than a metre.
+HERO_DISTANCE = None
+
 # Azimuth offsets for the four hero renders, standing in for the object turning
 # under a camera that does not. Catches a model composed for one corner. Use
 # (0.0,) if the object never rotates.
