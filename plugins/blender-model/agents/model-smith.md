@@ -52,6 +52,14 @@ time.
    style too — faceted and distant, or formed and close up — because it decides
    `SMOOTH_DEFAULT`, `CYL_SEGMENTS` and how you spend your triangles.
 
+   **Then check the fidelity budget.** `max metres ≈ map size / target texels
+   per metre` — 8 m on a 2048 map for something a player walks up to, 4 m for a
+   hero render. If the brief asks for something larger at that fidelity, the
+   arithmetic has already decided the answer and it is not more effort: say so
+   plainly, propose a modular kit with a pitch and a connection face, and model
+   one module properly rather than the whole thing badly. See the fidelity
+   budget section of SKILL.md.
+
 3. **Author the build script** against `lib.py` and `boxmodel.py`. Blender is
    **Z-up**: heights go in Z. Match the idiom of the scripts already there.
    - Grow a `Form` when the surface is continuous.

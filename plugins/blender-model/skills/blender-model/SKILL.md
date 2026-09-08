@@ -112,6 +112,57 @@ Give it:
   bathtub — if the topsides come out as parallel slab sides, keep working."
   Naming the failure mode is the single most effective line in a brief.
 
+## Work out the fidelity budget before you model anything
+
+One object gets one UV square, so the detail it can ever carry is fixed by its
+size before a single vertex exists:
+
+```
+texels per metre  ≈  map size / object extent in metres
+
+max metres  ≈  map size / target texels per metre
+```
+
+| Seen at | Target | 2048 map | 4096 map |
+|---|---|---|---|
+| Distant prop, 40 px on screen | 64 px/m | 32 m | 64 m |
+| Normal game camera | 128 px/m | 16 m | 32 m |
+| Player walks up to it | 256 px/m | 8 m | 16 m |
+| In your face, hero render | 512 px/m | 4 m | 8 m |
+
+Measured, not theoretical: a 71 m castle baked to a 4096 map came out at
+**14.7 texels per metre**. No amount of modelling skill or material work
+rescues that, because the arithmetic decided it before the work started.
+
+**If the object exceeds its budget, it must be modular.** That is not a style
+preference, it is the only way to buy detail: eight 4 m wall sections each on
+their own 2048 map carry sixteen times the texel density of one 32 m wall on
+the same map, and cost less memory because they repeat.
+
+### Building a kit rather than an object
+
+When you go modular, decide these *before* modelling, and write them at the top
+of the build script where the next person will find them:
+
+- **The pitch.** One number every piece is a multiple of — 2 m, 4 m, whatever
+  the world uses. Every module's footprint is `pitch × n`.
+- **The connection face.** Which face mates, at what height, with what profile.
+  A wall section and a gate section must present the same cross-section at the
+  joint or the kit will not tile.
+- **The origin convention.** Put it on the connection, not at the centre of
+  mass, so placing a piece is setting a position on the grid rather than
+  solving an offset.
+- **Overlap, deliberately.** A module exactly one pitch long opens a visible
+  slot at every joint the moment any jitter or rotation is applied. Build it
+  slightly longer and let consecutive pieces overlap.
+- **What varies and what does not.** Modules are seen many times. Anything
+  distinctive — a particular crack, a bright object — reads as a repeat and is
+  worse than no detail at all. Put the variety in a few pieces used once.
+
+Then model **one** module properly, at full density, and only build the rest of
+the kit once that one holds up in a close render. A kit built out before the
+first piece is judged is eight pieces of the same mistake.
+
 ## What the loop is
 
 The agent's own instructions carry it, but so you can tell whether it actually
