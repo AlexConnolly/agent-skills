@@ -92,6 +92,18 @@ TARGET_PX_PER_M = 128.0
 
 # Contact sheet.
 RES = 900
+
+# Cycles samples for the contact sheet. Nothing sets this by default, and
+# Cycles' own default is 4096 - so switching the sheet to Cycles (needed,
+# because EEVEE approximates the AO node and the mask views then lie) made
+# every render forty times slower than it had to be.
+SHOT_SAMPLES = 96
+
+# Studio environment: a gradient world plus a dark floor and black flags, for
+# anything with metal or glass. Off by default because it changes the lighting,
+# and a changed rig invalidates any before/after comparison unless the before
+# is re-rendered under it too.
+STUDIO_ENV = False
 SWATCH_SUBDIV = 5          # the flat-lay swatch is a subdivided plane
 
 # The raking-light shot: a low sun that skims the surface. This is the shot

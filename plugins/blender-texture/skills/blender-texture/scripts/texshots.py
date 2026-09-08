@@ -57,6 +57,14 @@ def setup(engine='CYCLES'):
         sc.eevee.taa_render_samples = 32
     except AttributeError:
         pass
+    # Cycles' own default is 4096 samples, which nothing here sets otherwise:
+    # switching the default engine to CYCLES turned a one-minute contact sheet
+    # into an hour of it. Denoising does the rest.
+    try:
+        sc.cycles.samples = getattr(cfg, 'SHOT_SAMPLES', 96)
+        sc.cycles.use_denoising = True
+    except AttributeError:
+        pass
 
 
 def world(hex_value, strength=0.85, name='texworld'):
