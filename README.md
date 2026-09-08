@@ -3,9 +3,9 @@
 Skills for coding agents. Each one packages a **working toolkit and the method
 for using it** — not just a prompt.
 
-| | | |
-|:--:|:--:|:--:|
-| ![Lighthouse](plugins/blender-model/skills/blender-model/images/lighthouse.png) | ![Tractor](plugins/blender-model/skills/blender-model/images/tractor.png) | ![Fishing boat](plugins/blender-model/skills/blender-model/images/fishing_boat.png) |
+| | | | |
+|:--:|:--:|:--:|:--:|
+| ![Lighthouse](plugins/blender-model/skills/blender-model/images/lighthouse.png) | ![Tractor](plugins/blender-model/skills/blender-model/images/tractor.png) | ![Fishing boat](plugins/blender-model/skills/blender-model/images/fishing_boat.png) | ![Sports car](plugins/blender-model/skills/blender-model/images/sports_car.png) |
 
 <sub>Each of these was built by an agent from a one-paragraph brief, using
 `blender-model` and nothing else.</sub>
@@ -36,8 +36,8 @@ thing that catches it is a picture.
 
 Build scripts for the three models above are in
 [`examples/`](plugins/blender-model/skills/blender-model/examples/) — primitives
-plus a grown `Form`, a node hierarchy with separately named wheels, and a lofted
-hull respectively.
+plus a grown `Form`, a node hierarchy with separately named wheels, a lofted
+hull, and a body whose section changes at every station.
 
 ### The contact sheet
 
