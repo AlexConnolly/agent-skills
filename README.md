@@ -5,7 +5,8 @@ for using it** — not just a prompt.
 
 | | | | |
 |:--:|:--:|:--:|:--:|
-| ![Lighthouse](plugins/blender-model/skills/blender-model/images/lighthouse.png) | ![Tractor](plugins/blender-model/skills/blender-model/images/tractor.png) | ![Fishing boat](plugins/blender-model/skills/blender-model/images/fishing_boat.png) | ![Sports car](plugins/blender-model/skills/blender-model/images/sports_car.png) |
+| ![Castle](plugins/blender-model/skills/blender-model/images/castle.png) | ![Tractor](plugins/blender-model/skills/blender-model/images/tractor.png) | ![Fishing boat](plugins/blender-model/skills/blender-model/images/fishing_boat.png) | ![Sports car](plugins/blender-model/skills/blender-model/images/sports_car.png) |
+| ![Lighthouse](plugins/blender-model/skills/blender-model/images/lighthouse.png) | ![Goblet](plugins/blender-model/skills/blender-model/images/goblet.png) | ![Castle close-up](plugins/blender-texture/skills/blender-texture/images/castle-closeup.png) | ![Sports car detail](plugins/blender-texture/skills/blender-texture/images/jag-before-after.png) |
 
 <sub>Each of these was built by an agent from a one-paragraph brief, using
 `blender-model` and nothing else.</sub>
@@ -13,6 +14,7 @@ for using it** — not just a prompt.
 ```
 /plugin marketplace add AlexConnolly/agent-skills
 /plugin install blender-model@connolly-skills
+/plugin install blender-texture@connolly-skills
 ```
 
 ---
@@ -22,6 +24,7 @@ for using it** — not just a prompt.
 | | Skill | What it does | Needs |
 |:--:|---|---|---|
 | 🗼 | **[blender-model](plugins/blender-model/)** | Builds 3D models in Blender as parametric Python, working a build → render → look → fix loop against a rendered contact sheet | Blender 4.x/5.x |
+| 🎨 | **[blender-texture](plugins/blender-texture/)** | Skins a model: procedural materials from placement masks, baked to real glTF textures, iterated the same way | Blender 4.x/5.x |
 
 <details>
 <summary><b>🗼 blender-model</b> — details, and what it deliberately cannot do</summary>
@@ -83,6 +86,45 @@ eroded to uneven stumps — but not as weathering on a surface.
 
 → [Full documentation](plugins/blender-model/) ·
 [API reference](plugins/blender-model/skills/blender-model/reference.md)
+
+</details>
+
+<details>
+<summary><b>🎨 blender-texture</b> — details, and how it chains with the modeller</summary>
+
+<br>
+
+Procedural materials built from **placement masks**, baked down to real glTF
+textures. `blender-model` makes the shape; this gives it a surface.
+
+![Castle before and after](plugins/blender-texture/skills/blender-texture/images/castle-before-after.png)
+
+The same corner, the same camera. Left is flat per-face colour: the moss is a
+band of discrete quads and there is a lone pale rectangle mid-wall. Right is
+baked from masks. The castle's own builder had already named the problem —
+*"a lone green quad mid-wall is a tile, never a plant."*
+
+### Why the bake is not optional
+
+glTF carries image textures wired into a Principled BSDF and **does not carry
+procedural nodes**, so a noise-and-ramp material renders beautifully in Blender
+and arrives in the engine flat grey. Build procedurally, unwrap, bake, rewire,
+export.
+
+### Masks are the whole game
+
+Moss low down and on the shaded side, rust around fixings, dirt in crevices,
+wear on handled edges — those *placements* are what make a surface read as
+weathered rather than tinted. So the contact sheet renders **each mask on its
+own, in grey, with a coverage number**, because "the moss is wrong" is not
+actionable and "the moss mask covers the whole south wall instead of the bottom
+two metres" is.
+
+Sizing follows from the object: `size='auto'` measures texel density after
+unwrapping and says OVER BUDGET, with the number of modules needed, when one UV
+square cannot reach the target.
+
+→ [Full documentation](plugins/blender-texture/)
 
 </details>
 

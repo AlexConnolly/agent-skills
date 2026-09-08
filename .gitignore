@@ -7,3 +7,6 @@ public/
 .DS_Store
 tests/.out/
 tests/.shots/
+demo/build/art/
+demo/build/**/shots/
+demo/build/**/models/

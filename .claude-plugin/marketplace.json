@@ -37,6 +37,33 @@
         "3d-modelling",
         "game-development"
       ]
+    },
+    {
+      "name": "blender-texture",
+      "displayName": "Blender Texture",
+      "source": "./plugins/blender-texture",
+      "description": "Skins a 3D model: procedural materials built from placement masks, baked to real glTF textures, iterated against a contact sheet that renders each mask on its own with a coverage number.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Alex Connolly",
+        "url": "https://github.com/AlexConnolly"
+      },
+      "repository": "https://github.com/AlexConnolly/agent-skills",
+      "license": "MIT",
+      "keywords": [
+        "blender",
+        "texturing",
+        "materials",
+        "pbr",
+        "gltf",
+        "baking"
+      ],
+      "category": "creative",
+      "tags": [
+        "blender",
+        "texturing",
+        "game-development"
+      ]
     }
   ]
 }
