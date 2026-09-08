@@ -125,6 +125,28 @@ rim — the hole is most of what reads.
 Grow a `Form` when the surface is continuous. Loft or sweep when the section is
 known at every station.
 
+### Booleans
+
+A window, a doorway, a recess, a slot: the difference between a hole cut in a
+surface and a frame stuck on top of it. Faking those with proud geometry works
+at a distance and falls apart at a grazing angle.
+
+| Function | Notes |
+|---|---|
+| `boolean(target, tool, op, solver='EXACT', keep_tool=False, transfer_material=True)` | Cuts in place and consumes the tool. Evaluates the depsgraph rather than applying a modifier through an operator, which needs a window context a background render does not have. |
+| `cut(target, tool)` · `fuse(target, tool)` · `intersect(target, tool)` | `DIFFERENCE`, `UNION`, `INTERSECT`. |
+| `hole(target, size, loc, rot, mat, through='y')` | A rectangular opening. The `through` axis is stretched so the tool passes clear of both faces — a tool stopping flush with a surface leaves a zero-thickness sliver the solver has to guess about. |
+
+`transfer_material` gives faces created by the cut the **tool's** material, so
+painting the tool a shade darker than the wall makes the reveal read as depth
+with nothing extra at the call site.
+
+`fuse` is not `merge_into`: that only groups meshes, while this removes the
+interior walls where two solids overlap and leaves one continuous surface.
+
+The EXACT solver expects closed input. A target with boundary edges produces
+something, but not reliably what you asked for.
+
 ### Hierarchy
 
 | Function | Notes |

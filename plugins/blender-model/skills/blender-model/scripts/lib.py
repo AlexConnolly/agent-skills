@@ -344,6 +344,80 @@ def rect_section(w, h):
     return [(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)]
 
 
+# ---------------------------------------------------------------- booleans
+#
+# A window, a doorway, a recess, a slot: the difference between a hole cut in a
+# surface and a frame stuck on top of it. Faking those with proud geometry
+# works at a distance and falls apart at a grazing angle.
+
+def boolean(target, tool, op='DIFFERENCE', solver='EXACT', keep_tool=False,
+            transfer_material=True):
+    """Cut, fuse or intersect `target` with `tool`, in place.
+
+    The tool is consumed unless `keep_tool`. With `transfer_material`, faces
+    created by the cut take the *tool's* material — so a hole reveals whatever
+    the tool was painted, which is usually what makes it read as a hole rather
+    than a black rectangle.
+
+    Evaluates the depsgraph rather than applying the modifier through an
+    operator: `bpy.ops.object.modifier_apply` depends on an active object and a
+    window context that a background render does not have.
+
+    The EXACT solver expects closed input. A target with boundary edges will
+    produce something, but not reliably what you asked for."""
+    m = target.modifiers.new('_bool', 'BOOLEAN')
+    m.object = tool
+    m.operation = op
+    m.solver = solver
+    if transfer_material and hasattr(m, 'material_mode'):
+        m.material_mode = 'TRANSFER'
+    # The modifier is evaluated against the tool's world matrix, which is stale
+    # until the depsgraph catches up with wherever the tool was just placed.
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    mesh = bpy.data.meshes.new_from_object(target.evaluated_get(dg))
+    target.modifiers.remove(m)
+    old = target.data
+    target.data = mesh
+    bpy.data.meshes.remove(old)
+    if not keep_tool:
+        bpy.data.objects.remove(tool, do_unlink=True)
+    return target
+
+
+def cut(target, tool, **kw):
+    """Subtract `tool` from `target`."""
+    return boolean(target, tool, 'DIFFERENCE', **kw)
+
+
+def fuse(target, tool, **kw):
+    """Merge `tool` into `target` as one continuous surface. Unlike
+    merge_into(), which only groups meshes, this removes the interior walls
+    where the two solids overlap."""
+    return boolean(target, tool, 'UNION', **kw)
+
+
+def intersect(target, tool, **kw):
+    """Keep only the volume the two share."""
+    return boolean(target, tool, 'INTERSECT', **kw)
+
+
+def hole(target, size, loc=(0, 0, 0), rot=(0, 0, 0), mat=None, through='y'):
+    """Cut a rectangular opening through `target`.
+
+    `size` is the opening; the axis named by `through` is stretched so the tool
+    passes clear of both faces — a tool that stops flush with a surface leaves
+    a zero-thickness sliver the solver has to guess about.
+
+    `mat` paints the reveal, and is usually a shade darker than the wall."""
+    s = list(size)
+    s[{'x': 0, 'y': 1, 'z': 2}[through]] *= 4.0
+    tool = box('_cut', s, loc, rot)
+    if mat:
+        attach(tool, None, mat)
+    return cut(target, tool)
+
+
 # ---------------------------------------------------------------- hierarchy
 #
 # A model that animates exports as a tree of named nodes. The animator drives

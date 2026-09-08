@@ -255,6 +255,57 @@ def test_bounds_are_tight_for_a_rotated_object():
           'got %.3f, want %.3f' % (got, want))
 
 
+def test_boolean_cuts_a_hole_and_stays_closed():
+    lib.reset()
+    stone = lib.hexmat('t_stone', 0xC6C0B4)
+    dark = lib.hexmat('t_dark', 0x1A1A1A)
+    wall = lib.box('wall', (6.0, 0.6, 3.0), (0, 0, 1.5))
+    lib.attach(wall, None, stone)
+    before = sum(len(p.vertices) - 2 for p in wall.data.polygons)
+
+    lib.hole(wall, (0.7, 0.6, 1.1), (0.0, 0, 1.7), mat=dark)
+
+    after = sum(len(p.vertices) - 2 for p in wall.data.polygons)
+    check('boolean adds geometry', after > before,
+          '%d -> %d tris' % (before, after))
+
+    bm = bmesh.new()
+    bm.from_mesh(wall.data)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    openings = [e for e in bm.edges if len(e.link_faces) < 2]
+    check('boolean leaves the mesh closed', not openings,
+          '%d boundary edges' % len(openings))
+    bm.free()
+
+    used = {wall.data.materials[p.material_index].name
+            for p in wall.data.polygons}
+    check('boolean transfers the tool material to the reveal',
+          't_dark' in used, 'materials used = %s' % sorted(used))
+
+    # the hole must actually pass through: no faces left spanning its middle
+    inside = [p for p in wall.data.polygons
+              if abs(p.center.x) < 0.3 and abs(p.center.z - 1.7) < 0.4
+              and abs(p.normal.y) > 0.9]
+    check('boolean leaves no web across the opening', not inside,
+          '%d faces spanning the hole' % len(inside))
+
+
+def test_fuse_removes_the_interior_wall():
+    lib.reset()
+    a = lib.box('a', (2, 2, 2))
+    b = lib.box('b', (2, 2, 2), (1.0, 0, 0))
+    lib.fuse(a, b)
+    bm = bmesh.new()
+    bm.from_mesh(a.data)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    interior = [e for e in bm.edges if len(e.link_faces) > 2]
+    openings = [e for e in bm.edges if len(e.link_faces) < 2]
+    check('fuse leaves one closed surface',
+          not interior and not openings,
+          '%d non-manifold, %d boundary' % (len(interior), len(openings)))
+    bm.free()
+
+
 def main():
     for fn in (test_size_is_full_extent,
                test_cut_at_preserves_the_mesh,
@@ -269,7 +320,9 @@ def main():
                test_ring_has_a_hole,
                test_silhouette_restores_materials_and_sky,
                test_export_reports_ground_contact,
-               test_bounds_are_tight_for_a_rotated_object):
+               test_bounds_are_tight_for_a_rotated_object,
+               test_boolean_cuts_a_hole_and_stays_closed,
+               test_fuse_removes_the_interior_wall):
         print('--- %s' % fn.__name__)
         fn()
     print()
