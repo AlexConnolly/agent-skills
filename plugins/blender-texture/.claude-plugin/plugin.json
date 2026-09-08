@@ -1,0 +1,8 @@
+{
+  "name": "blender-texture",
+  "description": "Teaches an agent to skin a 3D model: procedural materials built from placement masks, baked down to real glTF textures, working a bake -> render -> look -> fix loop against a contact sheet that shows each mask on its own.",
+  "version": "1.0.0",
+  "author": { "name": "Alex Connolly", "url": "https://github.com/AlexConnolly" },
+  "homepage": "https://github.com/AlexConnolly/agent-skills/tree/main/plugins/blender-texture",
+  "license": "MIT"
+}

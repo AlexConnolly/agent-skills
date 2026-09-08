@@ -1,0 +1,83 @@
+# Everything about the texturing pipeline that is true of your project.
+#
+# Edit this file. Do not edit texlib.py or texshots.py.
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..'))
+
+
+# ---------------------------------------------------------------- where things go
+
+# The .glb this pipeline reads and writes. Usually the same directory the
+# modelling toolkit exports to.
+MODELS = os.environ.get('ART_OUT') or os.path.join(ROOT, 'public', 'models')
+
+# Baked maps land here, one directory per material.
+TEXTURES = os.environ.get('TEX_OUT') or os.path.join(ROOT, 'public', 'textures')
+
+# Material contact sheets.
+SHOTS = os.environ.get('TEX_SHOTS') or os.path.join(HERE, 'shots')
+
+
+# ---------------------------------------------------------------- bake
+
+# Map resolution. 512 is generous for a prop seen at 60 px; 2048 is for
+# something the camera gets close to. Bake time scales with the square, but on
+# a few thousand triangles even 2048 is seconds rather than minutes.
+BAKE_SIZE = 1024
+
+# Cycles samples for the bake. Colour and roughness are flat lookups and need
+# almost nothing; ambient occlusion is the one that gets noisy, so AO_SAMPLES
+# is separate.
+BAKE_SAMPLES = 8
+AO_SAMPLES = 64
+
+# Which maps to produce. 'basecolor' and 'roughness' are the minimum worth
+# having. 'normal' only earns its place if the material has real bump detail.
+# 'ao' is baked into base colour rather than exported separately by default,
+# because glTF's occlusion map only affects indirect light and most real-time
+# viewers barely show it.
+MAPS = ('basecolor', 'roughness', 'normal')
+
+# Padding around UV islands, in pixels, so bilinear filtering does not bleed
+# the background across a seam at low mip levels.
+BAKE_MARGIN = 8
+
+# Angle limit for smart UV projection, in degrees, and the gap left between
+# islands as a fraction of the map.
+UNWRAP_ANGLE = 66.0
+
+# Island margin, as a fraction of the whole UV square, applied PER ISLAND. It
+# is therefore far smaller than it looks: a model with ten thousand islands at
+# 0.02 spends the entire map on gaps and the texel density collapses. Measured
+# on a 27k-triangle castle: 0.02 gave 0.84 px/m at 4096 and rendered solid
+# black; 0.0005 gave 14.7 px/m. Raise it only for models with few, large
+# islands, and check texel_density() after any change.
+UNWRAP_MARGIN = 0.0005
+
+
+# ---------------------------------------------------------------- look
+
+# Texel density check. If a model is 8 m long on a 1024 map, that is 128 px per
+# metre. Wildly different densities between models in the same scene is the
+# most common reason a set of assets fails to look like a set.
+TARGET_PX_PER_M = 128.0
+
+# Contact sheet.
+RES = 900
+SWATCH_SUBDIV = 5          # the flat-lay swatch is a subdivided plane
+
+# The raking-light shot: a low sun that skims the surface. This is the shot
+# that separates real micro-surface from a colour that merely suggests it, and
+# a material that only reads under flat front light is not finished.
+RAKE_ELEVATION_DEG = 8.0
+# 60 rather than 200: at 200 the sun sits behind sheet()'s own close camera
+# and the raking shot becomes a shadow study.
+RAKE_AZIMUTH_DEG = 60.0
+
+SKY = 0x9DB0C0
+SUN = 0xFFF4E0
+GROUND = 0x8CA36B
+SUN_ENERGY = 3.1
+SUN_FROM = (60.0, -40.0, 100.0)
