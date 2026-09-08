@@ -210,14 +210,20 @@ def mask_stats(mask_png, all_png):
         return {'error': 'the constant-1 view is empty; is the model in frame?'}
 
     img = bpy.data.images.load(mask_png)
-    # Non-Color, because the render is written display-referred and reading it
-    # as sRGB inflates every value — enough to report coverage roughly twenty
-    # points optimistic.
     img.colorspace_settings.name = 'Non-Color'
     buf = np.empty(w * h * 4, dtype=np.float32)
     img.pixels.foreach_get(buf)
     v = buf.reshape(-1, 4)[:, 0][body]
     bpy.data.images.remove(img)
+    # Undo the view transform, or every threshold below is measuring the wrong
+    # number. Measured in this Blender: a MaskView emitting exactly 0.50 writes
+    # 0.7354 to the PNG — srgb_encode(0.5) to four places — and `pixels`
+    # returns that same 0.7354 whether the image is loaded as Non-Color or as
+    # sRGB, so the colorspace setting changes nothing on read. Thresholding the
+    # stored value at 0.5 therefore counts everything above a mask value of
+    # 0.214 as strong, which is the twenty-point optimism this was trying to
+    # avoid rather than a cure for it.
+    v = np.where(v <= 0.04045, v / 12.92, ((v + 0.055) / 1.055) ** 2.4)
     out['strong'] = float((v > 0.5).mean() * 100.0)
     out['soft'] = float(((v > 0.15) & (v < 0.5)).mean() * 100.0)
     out['mean'] = float(v.mean())
