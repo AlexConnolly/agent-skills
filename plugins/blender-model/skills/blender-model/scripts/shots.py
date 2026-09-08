@@ -186,16 +186,27 @@ def load_glb(name):
 
 
 def bounds(objs):
+    """The true world-space extent, measured from the vertices.
+
+    Not from `bound_box`: that is the object's *local* axis-aligned box, and
+    transforming its eight corners through a rotation gives the box around the
+    rotated box, which is larger than the box around the mesh. A group whose
+    first member happens to sit on a bearing then over-reports — enough to
+    print the wrong dimensions and to frame every shot zoomed out to fit a
+    model that is not there."""
     lo = [1e9] * 3
     hi = [-1e9] * 3
     for o in objs:
         if o.type != 'MESH':
             continue
-        for c in o.bound_box:
-            w = o.matrix_world @ mathutils.Vector(c)
+        m = o.matrix_world
+        for v in o.data.vertices:
+            w = m @ v.co
             for i in range(3):
-                lo[i] = min(lo[i], w[i])
-                hi[i] = max(hi[i], w[i])
+                if w[i] < lo[i]:
+                    lo[i] = w[i]
+                if w[i] > hi[i]:
+                    hi[i] = w[i]
     return lo, hi
 
 

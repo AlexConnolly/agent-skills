@@ -237,6 +237,24 @@ def test_export_reports_ground_contact():
     check('export reports triangles', tris == 12, 'got %d' % tris)
 
 
+def test_bounds_are_tight_for_a_rotated_object():
+    """bound_box is the object's LOCAL axis-aligned box. Transforming its eight
+    corners through a rotation measures the box around the rotated box, which
+    is bigger than the mesh — enough to misreport dimensions and misframe every
+    shot."""
+    import math
+    import shots
+    lib.reset()
+    o = lib.box('spun', (4.0, 1.0, 1.0))
+    o.rotation_euler = (0.0, 0.0, math.radians(45.0))
+    bpy.context.view_layer.update()
+    lo, hi = shots.bounds([o])
+    want = 4.0 / math.sqrt(2.0) + 1.0 / math.sqrt(2.0)     # 3.536
+    got = hi[0] - lo[0]
+    check('bounds are tight for a rotated object', abs(got - want) < 1e-3,
+          'got %.3f, want %.3f' % (got, want))
+
+
 def main():
     for fn in (test_size_is_full_extent,
                test_cut_at_preserves_the_mesh,
@@ -250,7 +268,8 @@ def main():
                test_loft_is_closed,
                test_ring_has_a_hole,
                test_silhouette_restores_materials_and_sky,
-               test_export_reports_ground_contact):
+               test_export_reports_ground_contact,
+               test_bounds_are_tight_for_a_rotated_object):
         print('--- %s' % fn.__name__)
         fn()
     print()
