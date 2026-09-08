@@ -1,0 +1,31 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "agent-skills",
+  "owner": {
+    "name": "Alex Connolly",
+    "url": "https://github.com/AlexConnolly"
+  },
+  "description": "Skills for coding agents. Each one packages a working toolkit and the method for using it, not just a prompt.",
+  "version": "1.0.0",
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "blender-model",
+      "displayName": "Blender Model",
+      "source": "./plugins/blender-model",
+      "description": "Teaches an agent to build 3D models in Blender as parametric Python, working a build -> render -> look -> fix loop against a rendered contact sheet rather than writing geometry blind.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Alex Connolly",
+        "url": "https://github.com/AlexConnolly"
+      },
+      "repository": "https://github.com/AlexConnolly/agent-skills",
+      "license": "MIT",
+      "keywords": ["blender", "3d", "modelling", "gltf", "game-art", "procedural"],
+      "category": "creative",
+      "tags": ["blender", "3d-modelling", "game-development"]
+    }
+  ]
+}
