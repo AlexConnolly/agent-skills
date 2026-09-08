@@ -103,16 +103,30 @@ class Graph:
     #
     # Each returns a socket carrying roughly 0..1. Combine with mul/add/ramp.
 
-    def mask_noise(self, scale=6.0, detail=6.0, distortion=0.0, seed=0.0):
+    def mask_noise(self, scale=6.0, detail=6.0, distortion=0.0, seed=0.0,
+                   stretch=None):
         """Fractal noise in object space. The general-purpose breaker-up of
-        anything too even."""
+        anything too even.
+
+        `stretch` scales the coordinates before the noise, so the field itself
+        becomes directional: `stretch=(1, 1, 0.15)` draws it out vertically.
+        Almost every real stain runs downward - rain streaks, rust weeping from
+        a fixing, soot above a hearth, damp wicking up a wall - and isotropic
+        noise cannot say any of that. It is the difference between weathering
+        and a texture."""
         n = self.node('ShaderNodeTexNoise')
         n.inputs['Scale'].default_value = scale
         n.inputs['Detail'].default_value = detail
         n.inputs['Distortion'].default_value = distortion
         if 'W' in n.inputs:
             n.inputs['W'].default_value = seed
-        self.link(self.coords().outputs['Object'], n.inputs['Vector'])
+        vec = self.coords().outputs['Object']
+        if stretch:
+            m = self.node('ShaderNodeMapping')
+            m.inputs['Scale'].default_value = stretch
+            self.link(vec, m.inputs['Vector'])
+            vec = m.outputs['Vector']
+        self.link(vec, n.inputs['Vector'])
         return n.outputs['Fac']
 
     def mask_voronoi(self, scale=8.0, randomness=1.0):
@@ -412,6 +426,13 @@ class Graph:
         """Roughness variation is underrated. A single value reads as plastic;
         varying it by the same masks that drive colour is what makes wet
         patches look wet and worn metal look worn."""
+        # A socket straight in, for when several layers each change roughness
+        # and you have already combined them - the value-plus-one-mask form
+        # cannot express that, and roughness is exactly the channel where you
+        # want four contributions at once.
+        if hasattr(value, 'is_linked') or hasattr(value, 'node'):
+            self.link(value, self.bsdf.inputs['Roughness'])
+            return self
         if mask is None:
             self.bsdf.inputs['Roughness'].default_value = value
             return self
@@ -459,6 +480,42 @@ def unwrap(obj, angle=None, margin=None):
         island_margin=cfg.UNWRAP_MARGIN if margin is None else margin)
     bpy.ops.object.mode_set(mode='OBJECT')
     return len(obj.data.uv_layers[0].data) if obj.data.uv_layers else 0
+
+
+def weight_uvs(obj, weights, default=1.0):
+    """Give some materials more of the UV square than others, then repack.
+
+    Smart projection packs by area, so a large flat surface nobody looks at can
+    take most of the map while the detail that matters is starved - one castle
+    measured its ward floor taking 56 percent. `weights` is
+    {material_name: factor}; above 1 gets more texels, below 1 fewer.
+
+    Call it after unwrap() and before bake_set()."""
+    if not obj.data.uv_layers:
+        raise SystemExit('%s has no UVs; call unwrap() first' % obj.name)
+    names = [m.name if m else '' for m in obj.data.materials]
+    uv = obj.data.uv_layers[0].data
+    for p in obj.data.polygons:
+        w = weights.get(names[p.material_index] if
+                        p.material_index < len(names) else '', default)
+        if w == 1.0:
+            continue
+        cu = sum(uv[i].uv[0] for i in p.loop_indices) / len(p.loop_indices)
+        cv = sum(uv[i].uv[1] for i in p.loop_indices) / len(p.loop_indices)
+        for i in p.loop_indices:
+            uv[i].uv[0] = cu + (uv[i].uv[0] - cu) * w
+            uv[i].uv[1] = cv + (uv[i].uv[1] - cv) * w
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.select_all(action='SELECT')
+    bpy.ops.uv.pack_islands(margin=cfg.UNWRAP_MARGIN)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print('UVWEIGHT %s  %s  -> %.1f px/m'
+          % (obj.name, weights, texel_density(obj)))
+    return obj
 
 
 def texel_density(obj, size=None):
@@ -664,7 +721,8 @@ def bake_socket(graph, socket, name, size=None, non_colour=True):
     return path
 
 
-def apply_baked(obj, paths, name='baked', metallic=0.0):
+def apply_baked(obj, paths, name='baked', metallic=0.0,
+                emission=None, emission_strength=0.0):
     """Replace the procedural material with the baked maps, wired the way the
     glTF exporter understands.
 
@@ -709,6 +767,20 @@ def apply_baked(obj, paths, name='baked', metallic=0.0):
                      bsdf.inputs['Metallic'])
     else:
         bsdf.inputs['Metallic'].default_value = metallic
+    # Emission, because a baked material had no way to glow.
+    #
+    # Anything that gives off light — a lit window, a forge, a brazier, a lamp
+    # — had to be excluded from the texture pass entirely and kept as a flat
+    # material, which meant a glowing thing could not also be a textured thing.
+    # glTF carries this as the emissive texture and KHR_materials_emissive-
+    # strength.
+    if 'emission' in paths:
+        nt.links.new(image(paths['emission'], False).outputs['Color'],
+                     bsdf.inputs['Emission Color'])
+        bsdf.inputs['Emission Strength'].default_value = emission_strength
+    elif emission_strength and emission:
+        bsdf.inputs['Emission Color'].default_value = srgb(emission)
+        bsdf.inputs['Emission Strength'].default_value = emission_strength
 
     obj.data.materials.clear()
     obj.data.materials.append(mat)

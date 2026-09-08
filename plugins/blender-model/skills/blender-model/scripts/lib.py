@@ -390,6 +390,232 @@ def loft(name, stations, cap_ends=True, smooth=None):
                    smooth=True if smooth is None else smooth)
 
 
+def catmull(points, n=8, closed=False):
+    """A smooth curve through control points, `n` segments between each pair.
+
+    Every organic path is a handful of control points and a spline, and without
+    one every build script writes its own in the first ten minutes. Catmull-Rom
+    because it passes *through* its control points, so the numbers you type are
+    the positions you get."""
+    pts = [mathutils.Vector(p) for p in points]
+    if len(pts) < 2:
+        return [tuple(p) for p in pts]
+    if closed:
+        ring = pts
+    else:
+        # Duplicate the ends so the first and last spans are curved too, rather
+        # than the spline starting at the second point.
+        ring = [pts[0] + (pts[0] - pts[1])] + pts + [pts[-1] + (pts[-1] - pts[-2])]
+    out = []
+    count = len(pts) if closed else len(ring) - 3
+    for i in range(count):
+        p0 = ring[i % len(ring)]
+        p1 = ring[(i + 1) % len(ring)]
+        p2 = ring[(i + 2) % len(ring)]
+        p3 = ring[(i + 3) % len(ring)]
+        for s in range(n):
+            t = s / float(n)
+            t2, t3 = t * t, t * t * t
+            out.append(tuple(0.5 * ((2 * p1) + (-p0 + p2) * t
+                                    + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+                                    + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)))
+    if not closed:
+        out.append(tuple(pts[-1]))
+    return out
+
+
+def array(build, n, step=None, radius=None, start=(0, 0, 0), axis='z',
+          face_out=True, jitter=(0, 0, 0), turn=0.0, scale=0.0, seed=0):
+    """Place `n` copies along a line or round a circle, with optional jitter.
+
+    `build(i, position, angle)` returns one object. A third of most scene-
+    dressing code is this loop written out again — fence posts, crenellations,
+    balusters, rivets, a row of barrels.
+
+    Give `step` for a line or `radius` for a ring. `jitter` displaces, `turn`
+    rotates and `scale` varies size, all by up to the amount given, from a
+    seeded random so the result is reproducible."""
+    import random
+    rng = random.Random(seed)
+    made = []
+    for i in range(n):
+        if radius is not None:
+            a = i / float(n) * math.tau
+            pos = [start[0] + math.cos(a) * radius,
+                   start[1] + math.sin(a) * radius,
+                   start[2]]
+            angle = a + (math.pi / 2 if face_out else 0.0)
+        else:
+            s = step or (1.0, 0.0, 0.0)
+            pos = [start[j] + s[j] * i for j in range(3)]
+            angle = 0.0
+        pos = [pos[j] + rng.uniform(-jitter[j], jitter[j]) for j in range(3)]
+        angle += rng.uniform(-turn, turn)
+        obj = build(i, tuple(pos), angle)
+        if obj is None:
+            continue
+        if scale:
+            k = 1.0 + rng.uniform(-scale, scale)
+            obj.scale = (obj.scale[0] * k, obj.scale[1] * k, obj.scale[2] * k)
+        made.append(obj)
+    return made
+
+
+def prism(name, outline, depth, loc=(0, 0, 0), rot=(0, 0, 0), plane='xz',
+          smooth=None):
+    """Extrude an arbitrary 2D outline into a slab.
+
+    The shape between `loft` and `profile`: `loft` sweeps a closed section
+    along X and `profile` sweeps a fixed section along a path, and neither can
+    make a flat panel whose outline is just a shape you drew. Most sheet metal,
+    every gable, bracket, gusset, sign board and leaf blade is one of these.
+
+    `outline` is [(a, b), ...] wound consistently, in the plane named."""
+    obj, mesh = _new(name)
+    bm = bmesh.new()
+    i, j = {'xz': (0, 2), 'xy': (0, 1), 'yz': (1, 2)}[plane]
+    k = 3 - i - j
+    lo, hi = [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]
+    lo[k], hi[k] = -depth / 2.0, depth / 2.0
+    rings = []
+    for side in (lo, hi):
+        ring = []
+        for (a, b) in outline:
+            co = [0.0, 0.0, 0.0]
+            co[i], co[j], co[k] = a, b, side[k]
+            ring.append(bm.verts.new(co))
+        rings.append(ring)
+    n = len(outline)
+    for m in range(n):
+        p = (m + 1) % n
+        bm.faces.new((rings[0][m], rings[0][p], rings[1][p], rings[1][m]))
+    try:
+        bm.faces.new(list(reversed(rings[0])))
+        bm.faces.new(rings[1])
+    except ValueError:
+        # A self-intersecting outline cannot be capped with an n-gon. The walls
+        # are still built, so say what happened rather than failing silently.
+        print('WARNING prism %r: could not cap the ends, so the outline is '
+              'probably self-intersecting' % name)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    return _finish(obj, mesh, loc, rot, smooth=smooth)
+
+
+def solidify(name, grid, thickness, smooth=None):
+    """Give a parametric surface two sides and a rim.
+
+    `grid` is a list of rows of points — a wing membrane, a sail, a leaf, a
+    fin. Offsets each side along the surface normal and closes the border, so
+    the result is a closed solid rather than a sheet with no thickness (which
+    booleans refuse to cut and renderers shade wrongly from behind)."""
+    rows, cols = len(grid), len(grid[0])
+    obj, mesh = _new(name)
+    bm = bmesh.new()
+
+    def normal_at(r, c):
+        p = mathutils.Vector(grid[r][c])
+        du = mathutils.Vector(grid[r][min(c + 1, cols - 1)]) - \
+            mathutils.Vector(grid[r][max(c - 1, 0)])
+        dv = mathutils.Vector(grid[min(r + 1, rows - 1)][c]) - \
+            mathutils.Vector(grid[max(r - 1, 0)][c])
+        nrm = du.cross(dv)
+        return nrm.normalized() if nrm.length > 1e-9 else \
+            mathutils.Vector((0, 0, 1)), p
+
+    faces = []
+    for sign in (1.0, -1.0):
+        layer = []
+        for r in range(rows):
+            row = []
+            for c in range(cols):
+                nrm, p = normal_at(r, c)
+                row.append(bm.verts.new(p + nrm * (thickness / 2.0) * sign))
+            layer.append(row)
+        faces.append(layer)
+    top, bot = faces
+    for r in range(rows - 1):
+        for c in range(cols - 1):
+            bm.faces.new((top[r][c], top[r][c + 1], top[r + 1][c + 1], top[r + 1][c]))
+            bm.faces.new((bot[r + 1][c], bot[r + 1][c + 1], bot[r][c + 1], bot[r][c]))
+    for c in range(cols - 1):
+        bm.faces.new((bot[0][c], bot[0][c + 1], top[0][c + 1], top[0][c]))
+        bm.faces.new((top[rows - 1][c], top[rows - 1][c + 1],
+                      bot[rows - 1][c + 1], bot[rows - 1][c]))
+    for r in range(rows - 1):
+        bm.faces.new((top[r][0], top[r + 1][0], bot[r + 1][0], bot[r][0]))
+        bm.faces.new((bot[r][cols - 1], bot[r + 1][cols - 1],
+                      top[r + 1][cols - 1], top[r][cols - 1]))
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    return _finish(obj, mesh, (0, 0, 0), (0, 0, 0), smooth=smooth)
+
+
+def displace(obj, fn, cuts=0):
+    """Move every vertex by a function of its position and normal.
+
+    `fn(co, normal) -> offset vector`, or a float to move along the normal.
+    Scales, rivets, bark, hammered metal, quilting — surface relief that has to
+    be geometry because it breaks the silhouette, rather than a normal map that
+    cannot.
+
+    `cuts` subdivides first, since a displacement can only be as fine as the
+    mesh under it."""
+    if cuts:
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=cuts,
+                                  use_grid_fill=True)
+        bm.to_mesh(obj.data)
+        bm.free()
+    mesh = obj.data
+    mesh.calc_normals_split() if hasattr(mesh, 'calc_normals_split') else None
+    for v in mesh.vertices:
+        out = fn(v.co.copy(), v.normal.copy())
+        if isinstance(out, (int, float)):
+            v.co = v.co + v.normal * out
+        else:
+            v.co = v.co + mathutils.Vector(out)
+    return obj
+
+
+def text(name, body, size=0.1, depth=0.01, align='CENTER', loc=(0, 0, 0),
+         rot=(0, 0, 0), mat=None):
+    """Raised or engraved lettering, converted to a mesh.
+
+    Small, and worth far more than its triangles on anything read close up — a
+    nameplate or a dial legend is often what stops a well-made object reading
+    as a toy. Negative `depth` engraves instead of embossing.
+
+    The text is converted immediately, so what you get back is an ordinary mesh
+    that behaves like everything else here."""
+    curve = bpy.data.curves.new(name, type='FONT')
+    curve.body = body
+    curve.size = size
+    curve.align_x = align
+    curve.align_y = 'CENTER'
+    curve.extrude = abs(depth) / 2.0
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.convert(target='MESH')
+    obj = bpy.context.view_layer.objects.active
+    obj.name = name
+    if depth < 0:
+        for v in obj.data.vertices:
+            v.co.z = -v.co.z
+    obj.location = loc
+    obj.rotation_euler = rot
+    if mat:
+        obj.data.materials.clear()
+        obj.data.materials.append(mat)
+    return obj
+
+
 def path_frames(path):
     """The orientation of a path at each of its points.
 
@@ -672,7 +898,7 @@ def merge_into(name, parts, parent=None, mat=None):
     return attach(obj, parent, mat)
 
 
-def repaint(obj, rules):
+def repaint(obj, rules, only=None):
     """Per-face materials on a grown mesh.
 
     A form grown out of another is the same mesh, so a second colour on it
@@ -681,7 +907,14 @@ def repaint(obj, rules):
     and the list reads outermost-last.
 
     `test` takes the face centre, or (centre, normal) if it accepts two
-    arguments — painting a deck but not a side wall needs the normal."""
+    arguments — painting a deck but not a side wall needs the normal.
+
+    `only` restricts painting to faces already wearing one of the named
+    materials. Without it a rule that says "moss below two metres" will happily
+    put moss on an oak gate leaf and an iron portcullis bar, and the only way
+    round it is to partition the whole build by material before joining —
+    which forces every model to be material-aware for a reason that has
+    nothing to do with the model."""
     slot = {}
     for mat, _ in rules:
         if mat.name not in slot:
@@ -694,7 +927,17 @@ def repaint(obj, rules):
         except AttributeError:
             nargs = 1
         prepared.append((mat, test, nargs >= 2))
+    keep = None
+    if only is not None:
+        names = {only} if isinstance(only, str) else set(only)
+        keep = {i for i, m in enumerate(obj.data.materials) if m and m.name in names}
+        if not keep:
+            print('WARNING repaint(only=%s): %r wears none of those materials, '
+                  'so nothing was painted' % (sorted(names), obj.name))
+            return obj
     for p in obj.data.polygons:
+        if keep is not None and p.material_index not in keep:
+            continue
         for mat, test, wants_normal in prepared:
             if test(p.center, p.normal) if wants_normal else test(p.center):
                 p.material_index = slot[mat.name]

@@ -102,8 +102,35 @@ RAKE_ELEVATION_DEG = 8.0
 # and the raking shot becomes a shadow study.
 RAKE_AZIMUTH_DEG = 60.0
 
+# The studio world, for anything with metal or glass. A polished surface shows
+# you its surroundings and nothing else, so against a flat sky colour chrome
+# renders as grey card and no material work can fix it. A gradient, a darker
+# ground and one bright disc give metal a horizon, a dark half and a travelling
+# highlight - which is most of what reads as polished.
+WORLD_STRENGTH = 1.0
+WORLD_ZENITH  = 0x5C6B7A
+WORLD_HORIZON = 0xBFC7CE
+WORLD_GROUND  = 0x2A2A2C
+
 SKY = 0x9DB0C0
 SUN = 0xFFF4E0
 GROUND = 0x8CA36B
 SUN_ENERGY = 3.1
 SUN_FROM = (60.0, -40.0, 100.0)
+
+
+# ---------------------------------------------------------------- polished surfaces
+
+# Turns on studio_world() + studio_cards() in sheet(): gradient sky and
+# highlight, dark floor, two black flags out of shot. OFF by default, because
+# a weathered stone wall does not need it and it changes every shot.
+#
+# Turn it on for anything with a mirror in it - chrome, glass, car paint,
+# polished metal. Under the flat `world()` colour a mirror has one uniform
+# thing to reflect and renders as a grey card no matter how right the material
+# is. Measured on a sports car: the gradient sky ALONE changed almost nothing,
+# because a flat-faced bumper takes one sample of it per facet. The black
+# flags are what made chrome read as chrome.
+#
+# It changes the lighting, so re-render any baseline you are comparing against.
+STUDIO_ENV = False
