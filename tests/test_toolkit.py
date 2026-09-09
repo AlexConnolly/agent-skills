@@ -406,6 +406,56 @@ def test_rounded_box_uses_two_radii():
           'top rings at %s' % zs[-3:])
 
 
+def test_path_frames_survive_a_nearly_vertical_leg():
+    """The guard has to be relative to the tangent. An absolute epsilon catches
+    the exactly-vertical case and misses the nearly-vertical one, which is the
+    one that actually occurs - a straight leg whose neighbours differ by a
+    millimetre has a horizontal component around 0.0016, and the frame then
+    takes its whole azimuth from that crumb."""
+    path = [(0, 0, 0), (0.0000, 0, 1), (0.0016, 0, 2), (0, 0, 3), (0, 0, 4)]
+    frames = lib.path_frames(path)
+    worst = 0.0
+    for i in range(len(frames) - 1):
+        a, b = frames[i][1], frames[i + 1][1]
+        worst = max(worst, a.angle(b))
+    import math as _m
+    check('path_frames stay continuous on a nearly-vertical path',
+          worst < _m.radians(20),
+          'frame swings %.1f degrees between stations' % _m.degrees(worst))
+
+
+def test_text_is_welded_and_centred():
+    """Unwelded glyphs are not closed surfaces, so a boolean against them
+    silently does nothing - and typographic centring leaves a ring of numerals
+    sitting high."""
+    lib.reset()
+    o = lib.text('VIII', 'VIII', size=0.014, depth=0.0006)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    openings = [e for e in bm.edges if len(e.link_faces) < 2]
+    n_before = len(bm.verts)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
+    check('text() welds its doubled vertices', len(bm.verts) == n_before,
+          '%d verts weld down to %d' % (n_before, len(bm.verts)))
+    check('text() returns a closed surface', not openings,
+          '%d boundary edges' % len(openings))
+    bm.free()
+    ys = [v.co.y for v in o.data.vertices]
+    check('text() centres on the mesh, not the em box',
+          abs((min(ys) + max(ys)) / 2.0) < 1e-5,
+          'centre off by %.4f' % ((min(ys) + max(ys)) / 2.0))
+
+
+def test_text_resolution_controls_cost():
+    lib.reset()
+    lo = lib.text('lo', '8', size=0.02, depth=0.001, resolution=1)
+    hi = lib.text('hi', '8', size=0.02, depth=0.001, resolution=12)
+    check('text() resolution changes triangle cost',
+          len(hi.data.polygons) > len(lo.data.polygons),
+          'res1 %d faces, res12 %d' % (len(lo.data.polygons),
+                                       len(hi.data.polygons)))
+
+
 def main():
     for fn in (test_size_is_full_extent,
                test_cut_at_preserves_the_mesh,
@@ -428,7 +478,10 @@ def main():
                test_profile_scales_taper_the_sweep,
                test_sweep_changes_section_along_the_path,
                test_path_frames_are_orthonormal,
-               test_rounded_box_uses_two_radii):
+               test_rounded_box_uses_two_radii,
+               test_path_frames_survive_a_nearly_vertical_leg,
+               test_text_is_welded_and_centred,
+               test_text_resolution_controls_cost):
         print('--- %s' % fn.__name__)
         fn()
     print()

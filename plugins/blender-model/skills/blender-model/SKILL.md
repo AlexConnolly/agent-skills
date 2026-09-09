@@ -146,8 +146,14 @@ texels per metre  ≈  map size × sqrt(packing efficiency) / sqrt(total SURFACE
 
 **Surface area, not longest edge**, because a wall module has two faces, two
 ends, a walk and a parapet — its area is far larger than its footprint
-suggests. And **packing efficiency**, because `smart_project` on a model of many
-small islands fills about a third of the UV square.
+suggests.
+
+And **packing efficiency**, which is a property of the object, not a constant.
+`smart_project` fills about **a third** of the UV square on a model of
+thousands of small irregular islands, and about **two thirds** on one made of
+large flat rectangular panels. Measured: a castle wall module packed at 31.9%,
+a longcase clock at 66.1% — so the same formula gives the clock twice the
+density of the naive estimate. Measure it rather than assume a figure.
 
 Measured on a 4 m castle wall module: dividing by extent instead of √area
 over-estimates by **3.87×**, and ignoring the 31.9% packing over-estimates by a
@@ -169,10 +175,15 @@ architecture-sized one.** At building scale the honest answer is tiling or
 triplanar detail maps, which this pipeline does not have. A 4 m wall module is
 a 256 px/m object at best, and only if it is unwrapped well.
 
-Two measured data points to calibrate against: a 71 m castle came out at
-**14.7 texels per metre** at 4096. A 4 m module of the same wall, same map
-size, came out at **145** — **9.9× denser**. Modularity delivers a large, real
-gain. It does not deliver a hero-render surface at architecture scale.
+Three measured data points to calibrate against, all at 4096: a 71 m castle
+came out at **14.7 texels per metre**; a 4 m module of the same wall at
+**145**, nine times denser; and a 2.1 m longcase clock at **1205**, which
+clears a 512 hero target by 2.4× and reaches it at 2048.
+
+That spread is the whole argument. Modularity delivers a large, real gain but
+not a hero-render surface at architecture scale. A **prop** gets there
+comfortably — and gets there twice over, because a prop of flat panels also
+packs its UVs twice as well as a building does.
 
 **Do not trust this table over a measurement.** `texlib.texel_density(obj)`
 after unwrapping is the truth, and `bake_set(size='auto')` uses it. The table

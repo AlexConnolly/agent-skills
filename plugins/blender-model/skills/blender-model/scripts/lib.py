@@ -328,7 +328,16 @@ def path_frames(path):
         t.normalize()
         up = mathutils.Vector((0.0, 0.0, 1.0))
         r = t.cross(up)
-        if r.length < 1e-6:
+        # The test has to be RELATIVE to the tangent, not an absolute epsilon.
+        #
+        # t is unit length, so |t x up| is the sine of the angle away from
+        # vertical, and 0.05 is about three degrees. A 1e-6 guard catches only
+        # the exactly-vertical case and misses the nearly-vertical one, which
+        # is the one that occurs: a straight leg whose neighbours differ by a
+        # millimetre has a horizontal component near 0.0016, sails past the
+        # epsilon, and then supplies the entire azimuth. Measured on such a
+        # leg, the frame swung ninety degrees between consecutive stations.
+        if r.length < 0.05:
             # The path is running straight up, so it is parallel to the
             # reference and the cross product collapses. Falling back to a
             # fixed axis is not enough on its own: neighbouring rings then pick
@@ -617,21 +626,37 @@ def displace(obj, fn, cuts=0):
 
 
 def text(name, body, size=0.1, depth=0.01, align='CENTER', loc=(0, 0, 0),
-         rot=(0, 0, 0), mat=None):
-    """Raised or engraved lettering, converted to a mesh.
+         rot=(0, 0, 0), mat=None, resolution=4, weld=True):
+    """Raised lettering, converted to a mesh.
 
     Small, and worth far more than its triangles on anything read close up — a
     nameplate or a dial legend is often what stops a well-made object reading
-    as a toy. Negative `depth` engraves instead of embossing.
+    as a toy.
 
-    The text is converted immediately, so what you get back is an ordinary mesh
-    that behaves like everything else here."""
+    `resolution` is the curve resolution before conversion, and it matters more
+    than it looks. Straight strokes are nearly free and curves are not: at a
+    high resolution a dozen Roman numerals cost a few hundred triangles while a
+    dozen Arabic ones cost several thousand. Lower it for small text.
+
+    `depth` is always an extrusion toward +Z. There is no engraving mode — to
+    engrave, build the text and cut it out with `lib.cut(surface, letters)`.
+
+    `weld` merges the doubled vertices Blender's curve conversion leaves
+    behind. Without it a glyph is not a closed surface — `VIII` comes back with
+    seventy-six boundary edges that weld to thirty-eight vertices — and a
+    boolean against it silently refuses to do anything.
+
+    Centring is on the MESH BOUNDS, not the typographic em box. Blender centres
+    on the em box, which leaves every glyph sitting high by its descender
+    space; on a ring of twelve numerals that reads as a chapter ring that has
+    slipped."""
     curve = bpy.data.curves.new(name, type='FONT')
     curve.body = body
     curve.size = size
     curve.align_x = align
     curve.align_y = 'CENTER'
     curve.extrude = abs(depth) / 2.0
+    curve.resolution_u = max(1, int(resolution))
     obj = bpy.data.objects.new(name, curve)
     bpy.context.collection.objects.link(obj)
     bpy.context.view_layer.objects.active = obj
@@ -639,18 +664,32 @@ def text(name, body, size=0.1, depth=0.01, align='CENTER', loc=(0, 0, 0),
     bpy.ops.object.convert(target='MESH')
     obj = bpy.context.view_layer.objects.active
     obj.name = name
-    if depth < 0:
+    # The FONT datablock survives conversion by name and would otherwise
+    # accumulate across a build with many labels.
+    stale = bpy.data.curves.get(name)
+    if stale is not None:
+        bpy.data.curves.remove(stale)
+    if weld and obj.data.vertices:
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        bm.to_mesh(obj.data)
+        bm.free()
+    if align == 'CENTER' and obj.data.vertices:
+        xs = [v.co.x for v in obj.data.vertices]
+        ys = [v.co.y for v in obj.data.vertices]
+        dx = (min(xs) + max(xs)) / 2.0
+        dy = (min(ys) + max(ys)) / 2.0
         for v in obj.data.vertices:
-            v.co.z = -v.co.z
+            v.co.x -= dx
+            v.co.y -= dy
     obj.location = loc
     obj.rotation_euler = rot
     if mat:
         obj.data.materials.clear()
         obj.data.materials.append(mat)
     return obj
-
-
-
 
 def sweep(name, path, sections, close=False, smooth=None):
     """Sweep a section that CHANGES along the path.
