@@ -249,32 +249,44 @@ def wall_mod_b():
     section at both ends, so it drops into a run of wall_mod_a."""
     m = mats()['stone']
     parts = []
+    # 0.2625 is not a guess: wall_mod_a batters 0.310 -> 0.215 over 0.92 m, so
+    # at 0.46 its half-width is exactly 0.2625. A kit whose two modules disagree
+    # about the batter is a kit with a step at every joint between them.
     core = lib.prism('fallen_core',
                      [(-0.310, 0.000), (0.310, 0.000),
-                      (0.252, 0.460), (-0.252, 0.460)],
+                      (0.2625, 0.460), (-0.2625, 0.460)],
                      WALL_L, plane='yz')
-    # cuts=2 puts vertex rings at x = +/-1.02 and +/-0.34, so a tumble that
-    # only spares |x| > 0.92 drops BOTH inner rings and leaves a wedge — which
-    # is what `iso_a.png` showed: a ramp of rock with one end at full height
-    # and the other collapsed to nothing, and therefore two different end
-    # sections. A module whose ends differ cannot drop into a run of
-    # wall_mod_a, which is the one thing this piece exists to do.
-    lib.displace(core, _coursed(31, 3, 0.46), cuts=3)
-    for v in core.data.vertices:
-        if v.co.z < 0.30:
-            continue
-        # Full height for the last 0.25 m at each end, so both mating faces are
-        # wall_mod_a's section; tumbled in between, on a frequency high enough
-        # to break the crest rather than tilt it.
-        edge = max(0.0, min(1.0, (WALL_L * 0.5 - abs(v.co.x) - 0.06) / 0.19))
-        edge = edge * edge * (3.0 - 2.0 * edge)
-        n = (pc.noise3(v.co.x * 3.7, v.co.y * 2.1, 0, 77)
-             + 0.5 * pc.noise3(v.co.x * 8.3, 0, 0, 91))
-        v.co.z -= edge * (0.115 + 0.085 * (1.0 + n))
+    # The crest is broken by stones ADDED on top, not by dropping the vertices
+    # of the core. Two attempts at the latter both failed the same way: a
+    # subdivided prism only has vertex rings every 0.4-0.5 m, so any guard wide
+    # enough to keep the end sections intact leaves the crest ramping down over
+    # half a metre from each end — `iso_a.png` showed a wedge of rock rather
+    # than a fallen wall, with two end faces that no longer matched
+    # wall_mod_a's. Adding geometry keeps both mating faces exact by
+    # construction, which is the one thing this module has to get right.
+    lib.displace(core, _coursed(31, 3, 0.46), cuts=2)
     core.data.materials.append(m)
     parts.append(core)
 
     rng = pc.Rng(59)
+
+    def cap(i, pos, angle):
+        # What is left of the top courses: four blocks still up, one slipped
+        # over the face, and gaps where the rest has gone.
+        if i in (2, 5):
+            return None
+        slip = 0.30 if i == 4 else 0.0
+        h = rng.uni(0.13, 0.21)
+        return lib.box('capfall%d' % i, (rng.uni(0.20, 0.34), 0.44, h),
+                       loc=(pos[0], slip, 0.44 + h * 0.42 - slip * 0.55),
+                       rot=(rng.uni(-0.30, 0.30) + slip * 1.1,
+                            rng.uni(-0.16, 0.16), angle))
+
+    caps = lib.array(cap, 6, step=(0.318, 0, 0), start=(-0.795, 0, 0),
+                     jitter=(0.05, 0, 0), turn=0.22, seed=8)
+    for s in caps:
+        s.data.materials.append(m)
+    parts += caps
 
     def spill(i, pos, angle):
         s = rng.uni(0.13, 0.24)
@@ -283,9 +295,9 @@ def wall_mod_b():
                        loc=(pos[0], pos[1], s * 0.22),
                        rot=(rng.uni(-0.4, 0.4), rng.uni(-0.4, 0.4), angle))
 
-    left = lib.array(spill, 5, step=(0.36, 0.0, 0.0), start=(-0.75, 0.44, 0),
+    left = lib.array(spill, 4, step=(0.46, 0.0, 0.0), start=(-0.70, 0.44, 0),
                      jitter=(0.10, 0.16, 0.0), turn=math.pi, seed=6)
-    right = lib.array(spill, 4, step=(0.44, 0.0, 0.0), start=(-0.60, -0.46, 0),
+    right = lib.array(spill, 3, step=(0.58, 0.0, 0.0), start=(-0.55, -0.46, 0),
                       jitter=(0.10, 0.16, 0.0), turn=math.pi, seed=7)
     for s in left + right:
         s.data.materials.append(m)
