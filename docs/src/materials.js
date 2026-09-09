@@ -33,12 +33,13 @@ export const TUNING = {
   water_: { roughness: 0.06, metalness: 0.0, envMapIntensity: 0 },
   track_: { roughness: 0.35 },
 
-  // build_trees.py ships timber_evergreen at #55705C, a mid green. The brief it
-  // was written from asks for #0C1310 — "a shade cooler and darker than the
-  // bare timber", near-black — and at #55705C the yews and gorse read as exactly
-  // the green blobs §5 group 1 says would give the whole game away. Corrected
-  // here because that is what this table is for; it should also be fixed at
-  // source in build_trees.py.
+  // timber_evergreen is set here to the value the glb ALREADY carries, not as a
+  // correction. An earlier note in this file claimed build_trees.py shipped
+  // #55705C, a mid green; it does not. That value lives only behind its
+  // TREE_LOOK=1 debug flag, and the exported base-colour factors read back as
+  // #0C1310 on tree_yew, tree_pine and scrub_gorse — checked in the glb bytes.
+  // Left explicit because the yews and gorse are the pieces most at risk of
+  // reading as green blobs if anything ever does drift.
   timber_evergreen: { color: 0x0C1310, roughness: 0.9, metalness: 0.0, envMapIntensity: 0.25 },
 };
 
