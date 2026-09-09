@@ -253,12 +253,24 @@ def wall_mod_b():
                      [(-0.310, 0.000), (0.310, 0.000),
                       (0.252, 0.460), (-0.252, 0.460)],
                      WALL_L, plane='yz')
-    lib.displace(core, _coursed(31, 3, 0.46), cuts=2)
-    # Tumble the top: drop the crest unevenly so the run has no straight line
-    # left in it.
+    # cuts=2 puts vertex rings at x = +/-1.02 and +/-0.34, so a tumble that
+    # only spares |x| > 0.92 drops BOTH inner rings and leaves a wedge — which
+    # is what `iso_a.png` showed: a ramp of rock with one end at full height
+    # and the other collapsed to nothing, and therefore two different end
+    # sections. A module whose ends differ cannot drop into a run of
+    # wall_mod_a, which is the one thing this piece exists to do.
+    lib.displace(core, _coursed(31, 3, 0.46), cuts=3)
     for v in core.data.vertices:
-        if v.co.z > 0.30 and abs(v.co.x) < 0.92:
-            v.co.z -= 0.10 + 0.11 * (1.0 + pc.noise3(v.co.x * 1.6, 0, 0, 77))
+        if v.co.z < 0.30:
+            continue
+        # Full height for the last 0.25 m at each end, so both mating faces are
+        # wall_mod_a's section; tumbled in between, on a frequency high enough
+        # to break the crest rather than tilt it.
+        edge = max(0.0, min(1.0, (WALL_L * 0.5 - abs(v.co.x) - 0.06) / 0.19))
+        edge = edge * edge * (3.0 - 2.0 * edge)
+        n = (pc.noise3(v.co.x * 3.7, v.co.y * 2.1, 0, 77)
+             + 0.5 * pc.noise3(v.co.x * 8.3, 0, 0, 91))
+        v.co.z -= edge * (0.115 + 0.085 * (1.0 + n))
     core.data.materials.append(m)
     parts.append(core)
 

@@ -115,6 +115,10 @@ def box(name, size, loc=(0, 0, 0), rot=(0, 0, 0), chamfer=0.0, taper=1.0,
         segments=1, shear=0.0, smooth=None):
     """A chamfered box, optionally narrowed at the top or sheared along Y.
 
+    `taper` may be one factor for both plan axes, or `(x, y)` to batter one and
+    leave the other square — which is what a wall wants, and what a single
+    factor silently gets wrong.
+
     A visible chamfer catches the key light and gives the form an edge to sit
     on, which is most of what separates a modelled shape from a stretched
     cube."""
@@ -125,11 +129,17 @@ def box(name, size, loc=(0, 0, 0), rot=(0, 0, 0), chamfer=0.0, taper=1.0,
         v.co.x *= size[0]
         v.co.y *= size[1]
         v.co.z *= size[2]
-    if taper != 1.0:
+    # A scalar taper narrows BOTH plan axes, which is wrong for anything that
+    # batters in one direction only. A wall module battered across its
+    # thickness also lost thirty percent of its LENGTH at the top, so a kit of
+    # nine stood foot to foot with their tops 0.6 m apart and would not tile.
+    # Pass a pair to taper one axis and leave the other alone.
+    tx, ty = taper if isinstance(taper, (tuple, list)) else (taper, taper)
+    if tx != 1.0 or ty != 1.0:
         for v in bm.verts:
             if v.co.z > 0:
-                v.co.x *= taper
-                v.co.y *= taper
+                v.co.x *= tx
+                v.co.y *= ty
     if shear:
         for v in bm.verts:
             v.co.y += v.co.z * shear
@@ -862,7 +872,13 @@ def part(name, loc=(0, 0, 0), parent=None):
 
 def attach(obj, parent, mat=None):
     """Parent a mesh to a part without moving it. Everything is authored in
-    world coordinates and the parent's origin is subtracted here."""
+    world coordinates and the parent's origin is subtracted here.
+
+    A note for anything placed after a glTF IMPORT rather than built here: the
+    importer leaves nodes in QUATERNION rotation mode, and assigning
+    `rotation_euler` to such an object is silently ignored — the value is
+    stored and never used. Set `rotation_mode = 'XYZ'` first, or write
+    `rotation_quaternion`. It looks exactly like a placement bug."""
     if mat:
         obj.data.materials.clear()
         obj.data.materials.append(mat)
