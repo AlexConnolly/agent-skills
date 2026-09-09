@@ -38,6 +38,28 @@ export const SOURCES = {
     script: 'demo/build/build_mist.py',
     brief: 'demo/build/briefs/mist.md',
   },
+  rocks: {
+    label: 'build_rocks.py',
+    script: 'demo/build/build_rocks.py',
+    brief: 'demo/build/briefs/rocks.md',
+  },
+  crossing: {
+    label: 'build_crossing.py',
+    script: 'demo/build/build_crossing.py',
+    extra: [['route.py', 'demo/build/route.py']],
+    brief: 'demo/build/briefs/crossing.md',
+  },
+  track: {
+    label: 'build_track.py',
+    script: 'demo/build/build_track.py',
+    extra: [['route.py', 'demo/build/route.py']],
+    brief: 'demo/build/briefs/track.md',
+  },
+  clutter: {
+    label: 'build_clutter.py',
+    script: 'demo/build/build_clutter.py',
+    brief: 'demo/build/briefs/clutter.md',
+  },
   trees: {
     label: 'build_trees.py',
     script: 'demo/build/build_trees.py',
@@ -80,6 +102,34 @@ export const SCENERY = [
     castShadow: false, receiveShadow: true,
     note: 'The distant swell that keeps the far walls off a dead-flat horizon.',
   },
+
+  // World-authored. These four are swept along the road and the ditch ring in
+  // build_crossing.py and build_track.py from the shared route.py, so their
+  // vertices are already in world coordinates: they load at the origin and are
+  // not placed. Moving one would take it off the road it was cut to follow.
+  {
+    id: 'track_ribbon', file: 'track_ribbon.glb', source: 'track', group: 'The crossing and the road',
+    at: [{ pos: [0, 0, 0] }],
+    castShadow: false, receiveShadow: true,
+    note: '155 m of road swept from route.py, with two rut depressions. Roughness 0.35 against the field’s 0.9 — the sheen is what makes it read as a ribbon leading into the frame.',
+  },
+  {
+    id: 'ditch_bridge', file: 'ditch_bridge.glb', source: 'crossing', group: 'The crossing and the road',
+    at: [{ pos: [0, 0, 0] }],
+    castShadow: true, receiveShadow: true,
+    note: 'Oak trestles, three bays, one plank missing, a handrail on one side only. Deck at y = −2.95, not §6.1’s −1.0: a deck level with the lens renders as a zero-height line and the road cannot climb to it.',
+  },
+  {
+    id: 'causeway_apron', file: 'causeway_apron.glb', source: 'crossing', group: 'The crossing and the road',
+    at: [{ pos: [0, 0, 0] }],
+    castShadow: true, receiveShadow: true,
+  },
+  {
+    id: 'ditch_water', file: 'ditch_water.glb', source: 'crossing', group: 'The crossing and the road',
+    at: [{ pos: [0, 0, 0] }],
+    castShadow: false, receiveShadow: true,
+    note: 'Flat, roughness 0.06, no normal map and no animation. A dead-still black ditch on a windless night is better than a shader.',
+  },
 ];
 
 // ------------------------------------------------------- fires, lamps, panes
@@ -112,15 +162,15 @@ export const FIXTURES = [
   {
     id: 'lamp_post', file: 'lamp_post.glb', source: 'lights', group: 'Fire, lamp and plume kit',
     at: [
-      { pos: [48.0, -1.0, 24.6], rotY: 200 * D, tag: 'bridge post', dependsOn: 'ditch_bridge' },
-      { pos: [3.2, 0.2, 30.6], rotY: 0, tag: 'causeway W', dependsOn: 'causeway_apron' },
-      { pos: [8.8, 0.2, 30.6], rotY: 0, tag: 'causeway E', dependsOn: 'causeway_apron' },
+      { pos: [60.24, -2.95, 33.36], rotY: 208 * D, tag: 'bridge, outer handrail post' },
+      { pos: [3.2, 0.2, 30.6], rotY: 0, tag: 'causeway W' },
+      { pos: [8.8, 0.2, 30.6], rotY: 0, tag: 'causeway E' },
     ],
   },
   {
     id: 'lantern', file: 'lantern.glb', source: 'lights', group: 'Fire, lamp and plume kit',
     at: [
-      { pos: [48.0, -0.4, 24.6], rotY: 200 * D, tag: 'bridge post', dependsOn: 'ditch_bridge' },
+      { pos: [60.24, -1.05, 33.36], rotY: 208 * D, tag: 'bridge, outer handrail post' },
       { pos: [3.2, 1.9, 30.6], rotY: 0, tag: 'causeway W' },
       { pos: [8.8, 1.9, 30.6], rotY: 0, tag: 'causeway E' },
       { pos: [-19.35, 2.3, 6.3], rotY: 90 * D, tag: 'hall door' },
@@ -189,6 +239,104 @@ export const FIXTURES = [
     id: 'pane_passage', file: 'pane_passage.glb', source: 'lights', group: 'Lit-opening plates',
     at: [{ pos: [6.0, 0.1, 24.0], rotY: 0, tag: 'gate passage, 4 m back' }],
     note: 'Makes the gateway read as a way through rather than a black slot.',
+  },
+];
+
+// ------------------------------------- the crossing's pools and the clutter
+//
+// Fixed placements. `seat: true` samples terrain.json for y; the rut pools
+// instead carry the absolute y build_crossing.py froze for them, because they
+// are cut into the ribbon's rut depressions rather than laid on the field.
+
+export const PROPS = [
+  {
+    id: 'rut_pool', file: 'rut_pool.glb', source: 'crossing', group: 'The crossing and the road',
+    // The nine frozen positions printed by build_crossing.py. The first three
+    // sit 12-18 m out under the bridge lantern, which is the only place a
+    // specular glint can actually land — the mirror angle puts the ditch's own
+    // reflection 6 m outside the frame.
+    at: [
+      { pos: [68.31, -2.78, 37.34], tag: '12.3 m, under the lantern' },
+      { pos: [66.74, -2.72, 33.73], tag: '15.3 m, under the lantern' },
+      { pos: [63.31, -2.97, 33.89], tag: '18.3 m, under the lantern' },
+      { pos: [45.84, -4.49, 33.30] },
+      { pos: [46.13, -4.49, 32.82] },
+      { pos: [48.25, -4.49, 28.56] },
+      { pos: [48.41, -4.49, 28.05] },
+      { pos: [38.73, -4.09, 36.97] },
+      { pos: [40.75, -4.52, 37.90] },
+    ],
+    castShadow: false, receiveShadow: false,
+    note: 'Two centimetres deep and worth more than the ditch, because they are 12-45 m from the lens in the bottom of frame.',
+  },
+  {
+    id: 'wayside_cross', file: 'wayside_cross.glb', source: 'clutter', group: 'Outfield clutter',
+    // §5 group 8 gives (57.8, ground, 37.2) and then says the placement
+    // constraints beat the coordinate. On the ground as built they have to:
+    // that point stands on the ditch counterscarp with its base 13.4 degrees
+    // down, below the frame's bottom edge at -9.47, so only the head would show,
+    // growing out of nothing. build_clutter.py solved for a point that keeps all
+    // three constraints — on the track, head above the horizon, clear of the
+    // gatehouse and the SE tower — and this is it.
+    // build_clutter.py solved for (60.90, -3.22, 37.80) against §4.1's original
+    // pose. This page's camera is 10 m further back (see HERO in camera.js), and
+    // at that point the cross lands 33.7 % across — directly in front of the SE
+    // great tower, which is the one overlap §5 group 8 forbids by name. Re-solved
+    // on the same three constraints against the camera that is actually used:
+    // on the track (5.7 m off the centreline, a roadside cross), head above the
+    // horizon, clear of the gatehouse and the tower. Lands at 22.9 % across with
+    // its head at 57 % against the castle's dark base.
+    at: [{ pos: [69.09, 0, 43.63], rotY: -18 * D, seat: true }],
+    castShadow: true, receiveShadow: true,
+    note: 'The narrative object and the closest thing in frame, so it is what sets the scale for everything behind it. The one asset in its group carrying a baked map.',
+  },
+  {
+    id: 'carriers_cart', file: 'carriers_cart.glb', source: 'clutter', group: 'Outfield clutter',
+    at: [
+      { pos: [64.6, 0, 36.4], rotY: 108 * D, rot: [0, 0, -0.22], seat: true, tag: 'tipped, by the bridge' },
+      { pos: [12.6, 0, 34.4], rotY: -35 * D, seat: true, tag: 'on the berm outside the gate' },
+    ],
+    castShadow: true, receiveShadow: true,
+  },
+  {
+    id: 'woodstack', file: 'woodstack.glb', source: 'clutter', group: 'Outfield clutter',
+    at: [
+      { pos: [2.2, 0, 33.6], rotY: 12 * D, seat: true, tag: 'outside the gate' },
+      { pos: [21.0, 0.2, 15.0], rotY: 96 * D, tag: 'by the bake-house' },
+      { pos: [33.2, 0, 33.0], rotY: -52 * D, seat: true, tag: 'on the berm' },
+    ],
+    castShadow: true, receiveShadow: true,
+  },
+  {
+    id: 'tether_post', file: 'tether_post.glb', source: 'clutter', group: 'Outfield clutter',
+    at: [
+      { pos: [63.8, 0, 30.2], rotY: 20 * D, seat: true, tag: 'by the bridge' },
+      { pos: [65.1, 0, 31.6], rotY: 145 * D, seat: true, tag: 'by the bridge' },
+      { pos: [69.44, 0, 32.23], rotY: 70 * D, seat: true, tag: 'by the bridge' },
+      { pos: [10.8, 0, 32.6], rotY: -20 * D, seat: true, tag: 'by the gate' },
+      { pos: [2.6, 0, 31.4], rotY: 100 * D, seat: true, tag: 'by the gate' },
+      { pos: [13.4, 0, 30.1], rotY: 200 * D, seat: true, tag: 'by the gate' },
+    ],
+    castShadow: true, receiveShadow: false,
+  },
+  {
+    id: 'hay_heap', file: 'hay_heap.glb', source: 'clutter', group: 'Outfield clutter',
+    at: [
+      { pos: [41.72, 0, 37.85], rotY: 25 * D, seat: true },
+      { pos: [73.87, 0, 29.16], rotY: 140 * D, seat: true },
+      { pos: [54.39, 0, 4.26], rotY: -60 * D, seat: true },
+    ],
+    castShadow: true, receiveShadow: false,
+  },
+  {
+    id: 'field_gate', file: 'field_gate.glb', source: 'track', group: 'Track and field edges',
+    // In the gaps the wall runs leave where the road goes through. The origin
+    // is the hinge, so the yaw swings the gate about its hanging post.
+    at: [
+      { pos: [78.6, 0, 39.6], rotY: 117 * D, seat: true, tag: 'shut' },
+      { pos: [71.4, 0, 44.4], rotY: 44 * D, seat: true, tag: 'hanging open' },
+    ],
+    castShadow: true, receiveShadow: false,
   },
 ];
 
@@ -274,6 +422,31 @@ export const KITS = [
     count: 70, place: 'gorse', castShadow: true },
   { id: 'deadfall', file: 'deadfall.glb', source: 'trees', group: 'Tree and scrub kit',
     count: 8, place: 'deadfall', castShadow: true },
+
+  { id: 'rock_outcrop_a', file: 'rock_outcrop_a.glb', source: 'rocks', group: 'Rock and outcrop kit',
+    count: 9, place: 'outcrop_a', castShadow: true, receiveShadow: true,
+    note: 'Bedded limestone: stacked slabs with flat tops and sharp arrises, not warped spheres. Breaking through the turf on the platform batter.' },
+  { id: 'rock_outcrop_b', file: 'rock_outcrop_b.glb', source: 'rocks', group: 'Rock and outcrop kit',
+    count: 14, place: 'outcrop_b', castShadow: true, receiveShadow: true },
+  { id: 'boulder_a', file: 'boulder_a.glb', source: 'rocks', group: 'Rock and outcrop kit',
+    count: 18, place: 'boulder_a', castShadow: true, receiveShadow: true },
+  { id: 'boulder_b', file: 'boulder_b.glb', source: 'rocks', group: 'Rock and outcrop kit',
+    count: 16, place: 'boulder_b', castShadow: true, receiveShadow: true },
+  { id: 'scree_run', file: 'scree_run.glb', source: 'rocks', group: 'Rock and outcrop kit',
+    count: 5, place: 'scree', castShadow: true, receiveShadow: true },
+
+  // These four are placed by RUNS in place.js rather than by a count: they
+  // follow a boundary at a fixed pitch, and how many fit is a property of the
+  // boundary, not a number to be forced.
+  { id: 'wall_mod_a', file: 'wall_mod_a.glb', source: 'track', group: 'Track and field edges',
+    run: true, castShadow: true, receiveShadow: true,
+    note: '2.00 m pitch on a 2.04 m module with 4 cm of deliberate overlap, origin on the pitch centre, alternate modules flipped 180 degrees. All the variety is placement; a distinctive module drawn 44 times reads as a repeat.' },
+  { id: 'wall_mod_b', file: 'wall_mod_b.glb', source: 'track', group: 'Track and field edges',
+    run: true, castShadow: true, receiveShadow: true,
+    note: 'The gapped module, used in threes as a fallen run.' },
+  { id: 'hurdle', file: 'hurdle.glb', source: 'track', group: 'Track and field edges',
+    run: true, castShadow: true, receiveShadow: false,
+    note: 'Hazel, driven 0.14 m into the ground — the mesh extends below its origin on purpose.' },
 ];
 
 // ------------------------------------------------- what is not built yet
@@ -281,19 +454,7 @@ export const KITS = [
 // rendering a smaller world. main.js prints this list to the console and the
 // notes panel shows it.
 
-export const PENDING = [
-  { group: 'Group 2 — rock and outcrop kit', script: 'demo/build/build_rocks.py',
-    pieces: 'rock_outcrop_a/b, boulder_a/b, scree_run' },
-  { group: 'Group 5 — the crossing', script: 'demo/build/build_crossing.py',
-    pieces: 'ditch_bridge, causeway_apron, ditch_water, rut_pool',
-    affects: 'The bridge lantern and its post are placed at the deck level they will sit at (y = −1.0); until the bridge lands they stand over the ditch on nothing.' },
-  { group: 'Group 6 — track and field edges', script: 'demo/build/build_edges.py',
-    pieces: 'track_ribbon, wall_mod_a/b, hurdle, field_gate',
-    affects: 'The track polyline in place.js is already frozen and trees are rejected within 5.2 m of it, so the ribbon will land in cleared ground.' },
-  { group: 'Group 8 — outfield clutter', script: 'demo/build/build_clutter.py',
-    pieces: 'wayside_cross, carriers_cart, woodstack, tether_post, hay_heap',
-    affects: 'The wayside cross is the closest object in the hero frame and the one thing that sets scale for everything behind it. Its absence is the biggest hole in the picture.' },
-];
+export const PENDING = [];
 
 // What on this page is scene code rather than a generated object. §8.3 asks for
 // this to be said out loud, so it is data and the panel cannot drift from it.

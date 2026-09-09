@@ -5,10 +5,10 @@ import { makeScene, makeRenderer, makeComposer, makeSky, BLOOM, EXPOSURE } from 
 import { makeCamera, CameraRig, HERO } from './camera.js';
 import { Lighting } from './lights.js';
 import { Terrain } from './terrain.js';
-import { placeAll, SEED } from './place.js';
+import { placeAll, setRoad, SEED } from './place.js';
 import { SceneAssets } from './load.js';
 import { makeClampPass, auditFrame } from './debug.js';
-import { SCENERY, FIXTURES, MIST, KITS, PENDING, HAND_WRITTEN, SOURCES, repoUrl } from './manifest.js';
+import { SCENERY, FIXTURES, PROPS, MIST, KITS, PENDING, HAND_WRITTEN, SOURCES, repoUrl } from './manifest.js';
 
 const ASSET_BASE = 'assets';
 const $ = (id) => document.getElementById(id);
@@ -37,6 +37,14 @@ async function boot() {
     console.warn('[nightfall] no terrain.json — instanced kits cannot be seated', err);
   }
 
+  // The drove road, from the same route.py the ribbon and the bridge were swept
+  // from. Two copies of the road would be two roads, so the rejection rules use
+  // this rather than a polyline typed out again here.
+  try {
+    const rr = await fetch('data/route.json');
+    if (rr.ok) setRoad((await rr.json()).centreline);
+  } catch { console.warn('[nightfall] no route.json — using the fallback road'); }
+
   // §8.6 step 5: prefer the frozen placement file; fall back to generating it
   // from the same seeded code so the page still works before the bake step has
   // been run. Either way the result is identical from a cold load.
@@ -62,6 +70,8 @@ async function boot() {
   await assets.loadScenery(SCENERY, ASSET_BASE);
   say('loading fires, lamps and lit openings');
   await assets.loadFixtures(FIXTURES, ASSET_BASE, terrain);
+  say('laying the road, the crossing and the clutter');
+  await assets.loadFixtures(PROPS, ASSET_BASE, terrain);
   say('laying the ground mist');
   await assets.loadFixtures(MIST, ASSET_BASE, terrain);
   say('placing the tree and scrub kit');
@@ -230,7 +240,7 @@ function sourceLinks(key) {
 function buildNotes(report, translucentCount) {
   const missingIds = new Set(report.missing.map((m) => m.id));
   const groups = new Map();
-  for (const e of [...SCENERY, ...FIXTURES, ...MIST, ...KITS]) {
+  for (const e of [...SCENERY, ...FIXTURES, ...PROPS, ...MIST, ...KITS]) {
     if (!groups.has(e.group)) groups.set(e.group, []);
     groups.get(e.group).push(e);
   }
@@ -240,7 +250,8 @@ function buildNotes(report, translucentCount) {
     html += `<h3>${group}</h3><table class="assets">`;
     for (const e of entries) {
       const gone = missingIds.has(e.id);
-      const count = e.count ? `&times;${e.count}` : (e.at && e.at.length > 1 ? `&times;${e.at.length}` : '');
+      const n = e.placedCount || e.count || (e.at && e.at.length > 1 ? e.at.length : 0);
+      const count = n ? `&times;${n}` : '';
       html += `<tr class="${gone ? 'gone-row' : ''}">
         <td class="a-id">${e.id} <span class="a-count">${count}</span></td>
         <td class="a-src">${sourceLinks(e.source)}</td>
@@ -255,6 +266,8 @@ function buildNotes(report, translucentCount) {
   $('notes-hand').innerHTML = HAND_WRITTEN
     .map(([what, how]) => `<li><b>${what}.</b> ${how}</li>`).join('');
 
+  const pendingEl = document.getElementById('pending-section');
+  if (!PENDING.length && pendingEl) pendingEl.style.display = 'none';
   $('notes-pending').innerHTML = PENDING.map((p) => `
     <li><b>${p.group}</b> — <code>${p.script}</code><br>
     <span class="a-note">${p.pieces}</span>

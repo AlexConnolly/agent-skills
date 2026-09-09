@@ -12,13 +12,14 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { Terrain } from '../src/terrain.js';
-import { placeAll, SEED, RULES } from '../src/place.js';
+import { placeAll, setRoad, SEED, RULES } from '../src/place.js';
 import { KITS } from '../src/manifest.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const docs = join(here, '..');
 
 const terrain = new Terrain(JSON.parse(readFileSync(join(docs, 'data/terrain.json'), 'utf8')));
+setRoad(JSON.parse(readFileSync(join(docs, 'data/route.json'), 'utf8')).centreline);
 const pieces = placeAll(terrain, KITS);
 
 const out = {
@@ -30,16 +31,13 @@ const out = {
 writeFileSync(join(docs, 'data/placement.json'), JSON.stringify(out), 'utf8');
 
 let total = 0;
-console.log('piece            asked  placed  rMin  rMax');
+console.log('piece             asked  placed');
 for (const kit of KITS) {
-  const got = pieces[kit.id].length;
+  const got = (pieces[kit.id] || []).length;
   total += got;
-  const r = RULES[kit.place];
-  const flag = got < kit.count ? '  <-- short' : '';
-  console.log(
-    `${kit.id.padEnd(16)} ${String(kit.count).padStart(5)} ${String(got).padStart(7)}` +
-    ` ${String(r.rMin).padStart(5)} ${String(r.rMax).padStart(5)}${flag}`,
-  );
+  const asked = kit.run ? 'run' : String(kit.count);
+  const flag = !kit.run && got < kit.count ? '  <-- short' : '';
+  console.log(`${kit.id.padEnd(17)} ${asked.padStart(5)} ${String(got).padStart(7)}${flag}`);
 }
-console.log(`${'total'.padEnd(16)} ${String(KITS.reduce((a, k) => a + k.count, 0)).padStart(5)} ${String(total).padStart(7)}`);
+console.log(`${'total'.padEnd(17)} ${''.padStart(5)} ${String(total).padStart(7)}`);
 console.log('wrote docs/data/placement.json');

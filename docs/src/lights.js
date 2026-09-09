@@ -76,10 +76,18 @@ export const POINTS = [
     flicker: false, binds: [],
     job: 'Warms the ashlar around the lit windows so they are set into stone rather than stuck on. Steady — a candle behind a shutter does not flicker.' },
 
+  // §3.4 puts this at (48.0, -0.4, 24.6) against a deck at y = -1.0. The bridge
+  // as built has its deck at -2.95 — a deck at -1.0 is level with the lens and
+  // renders as a zero-height line, and the road cannot climb to it — so the
+  // lantern rides the bridge's outer handrail post at (60.24, -2.95, 33.36) and
+  // the light sits at the lantern rather than at the post's foot. The three
+  // rut pools frozen at 12-18 m are directly below it, which is the only place
+  // a specular glint can land: the mirror angle puts the ditch's own reflection
+  // six metres outside the frame.
   { key: 'bridge_lantern', name: 'Bridge lantern',
-    pos: [48.0, -0.4, 24.6], color: WARM.fireCore,  intensity: 3.5, distance: 12,
+    pos: [60.24, -1.05, 33.36], color: WARM.fireCore,  intensity: 3.5, distance: 12,
     flicker: true, binds: [['lantern', 0]],
-    job: 'Foreground. Its reflection in the ditch water is the whole reason it exists.' },
+    job: 'Foreground. Its reflection in the wet ruts is the whole reason it exists.' },
 ];
 
 // Golden-ratio phases: three incommensurate offsets per light, so no two fires

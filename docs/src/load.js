@@ -122,6 +122,11 @@ export class SceneAssets {
           obj.position.fromArray(at.pos);
         }
         if (at.rotY) obj.rotation.y = at.rotY;
+        // A tipped cart needs a roll as well as a yaw. Setting Object3D.rotation
+        // here is safe: it and .quaternion are the same state in three, so this
+        // replaces whatever the loader put on the clone's root rather than being
+        // silently ignored the way rotation_euler is on an imported Blender node.
+        if (at.rot) obj.rotation.set(at.rot[0], at.rotY || at.rot[1], at.rot[2]);
         if (at.scale) obj.scale.fromArray(at.scale);
         obj.traverse((o) => { if (o.isMesh) this.triangles += tris(o.geometry); });
         this.root.add(obj);
@@ -137,6 +142,7 @@ export class SceneAssets {
 
       const records = placement[e.id] || [];
       if (!records.length) { this.missing.push({ ...e, why: 'no placement records' }); continue; }
+      e.placedCount = records.length;
 
       tuneMaterials(src, { assetId: e.id, castShadow: e.castShadow !== false });
       const parts = flatten(src);
@@ -148,7 +154,7 @@ export class SceneAssets {
         const inst = new THREE.InstancedMesh(part.geometry, part.material, records.length);
         inst.name = `${e.id}:${part.material.name || 'mat'}`;
         inst.castShadow = e.castShadow !== false;
-        inst.receiveShadow = false;
+        inst.receiveShadow = e.receiveShadow === true;
         inst.instanceMatrix.setUsage(THREE.StaticDrawUsage);
         records.forEach((rec, i) => inst.setMatrixAt(i, instanceMatrix(rec, m)));
         inst.instanceMatrix.needsUpdate = true;
