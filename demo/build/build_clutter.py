@@ -31,6 +31,10 @@ import sys
 import bpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# art_props/ is a private copy of the blender-model toolkit and is not tracked
+# (see .gitignore); route.py, terrain.py and props_common.py are this project's
+# own and sit here beside the build scripts, so a clean checkout still builds.
+sys.path.append(HERE)
 sys.path.append(os.path.join(HERE, 'art_props'))
 
 import artconfig as cfg          # noqa: E402
@@ -54,10 +58,15 @@ def mats():
 
 
 def seat(obj):
-    """Floor on z=0. Weathering, shear and displacement all move it."""
+    """Floor on z=0. Weathering, shear and displacement all move it.
+
+    The object is moved, not the vertices: a join leaves a transform behind and
+    shifting mesh coordinates by a world-space measurement then puts the floor
+    somewhere else again. The woodstack shipped 6 cm sunk for exactly that
+    reason, and section 9.4 rejects the scene for a floating or buried asset."""
     lo = min((obj.matrix_world @ v.co).z for v in obj.data.vertices)
-    for v in obj.data.vertices:
-        v.co.z -= lo
+    obj.location.z -= lo
+    bpy.context.view_layer.update()
     return obj
 
 
@@ -354,22 +363,26 @@ def hay_heap():
     # staddles
     for sx in (-1, 1):
         for sy in (-1, 1):
-            o = lib.box('staddle%d%d' % (sx, sy), (0.16, 0.16, 0.46),
-                        loc=(0.95 * sx, 0.95 * sy, 0.23))
+            o = lib.box('staddle%d%d' % (sx, sy), (0.17, 0.17, 0.52),
+                        loc=(0.95 * sx, 0.95 * sy, 0.26))
             o.data.materials.append(m['timber'])
             parts.append(o)
     for sy in (-1, 1):
-        o = lib.box('bearer%d' % sy, (2.30, 0.14, 0.13),
-                    loc=(0, 0.95 * sy, 0.52))
+        o = lib.box('bearer%d' % sy, (2.34, 0.15, 0.14),
+                    loc=(0, 0.95 * sy, 0.59))
         o.data.materials.append(m['timber'])
         parts.append(o)
-    deck = lib.box('rick_deck', (2.30, 2.20, 0.09), loc=(0, 0, 0.63))
+    deck = lib.box('rick_deck', (2.36, 2.26, 0.10), loc=(0, 0, 0.71))
     deck.data.materials.append(m['timber'])
     parts.append(deck)
 
-    rick = lib.revolve('rick', [(0.00, 0.660), (1.52, 0.680), (1.60, 1.150),
-                                (1.34, 1.560), (0.72, 1.960),
-                                (0.00, 2.070)],
+    # A rick is a drum with a thatched cone on it. The first version was a
+    # revolve whose widest point was a third of the way up, and `iso_a.png`
+    # showed a black dome on legs — a beetle, not a haystack. Straight sides to
+    # the eaves, then one straight cone to the apex, is the whole shape.
+    rick = lib.revolve('rick', [(0.00, 0.700), (1.44, 0.700), (1.58, 0.900),
+                                (1.60, 1.220), (1.44, 1.330),
+                                (0.00, 2.180)],
                        segments=10, close_outline=False, smooth=False)
     # Slump it: a rick settles unevenly and leans off the wind. Without this it
     # is a lathe-turned cone and reads as one.
@@ -381,13 +394,18 @@ def hay_heap():
     rick.data.materials.append(m['hay'])
     parts.append(rick)
 
-    rope = lib.profile('rope', lib.rect_section(0.035, 0.035),
-                       [(-1.62, 0.05, 0.74), (-1.30, 0.03, 1.30),
-                        (-0.55, 0.0, 1.90), (0.30, -0.02, 1.94),
-                        (1.10, -0.02, 1.44), (1.55, 0.0, 0.80)],
-                       close=True, smooth=False)
-    rope.data.materials.append(m['timber'])
-    parts.append(rope)
+    # Two ropes weighted over the cone, which is what actually holds a rick's
+    # thatch on and what breaks its silhouette so it does not read as a lathe
+    # turning.
+    for k, dy in enumerate((0.42, -0.52)):
+        rope = lib.profile('rope%d' % k, lib.rect_section(0.045, 0.045),
+                           [(-1.58, dy, 0.86), (-1.34, dy, 1.42),
+                            (-0.70, dy * 0.8, 1.92), (0.10, dy * 0.7, 2.10),
+                            (0.86, dy * 0.8, 1.78), (1.44, dy, 1.14),
+                            (1.62, dy, 0.82)],
+                           close=True, smooth=False)
+        rope.data.materials.append(m['timber'])
+        parts.append(rope)
     return seat(lib.merge_into('hay_heap', parts))
 
 
@@ -432,13 +450,30 @@ def main():
           % total)
     print()
     from props_common import hero_frame, px_per_metre
-    d, f = hero_frame(57.8, 37.2)
-    print('wayside_cross at three (57.8, ground, 37.2): %.1f m from the lens, '
-          '%.1f %% across, %.0f px/m at 1920 wide' % (d, f, px_per_metre(d)))
-    print('  2.8 m tall at %.0f px/m is %.0f px, which on a 1080-line frame is '
-          '%.0f %% of the frame height' % (px_per_metre(d),
-                                           2.8 * px_per_metre(d),
-                                           2.8 * px_per_metre(d) / 1080 * 100))
+    from terrain import Terrain
+    t = Terrain()
+    print('=== where the wayside cross goes ===')
+    print('Section 5 group 8 gives three (57.8, ground, 37.2) and then says, in')
+    print('the same paragraph, that the placement constraints beat the')
+    print('coordinate. On the ground as built they have to, because:')
+    for label, (x, z) in (("section 5 coordinate", (57.8, 37.2)),
+                          ('this build', (60.90, 37.80))):
+        g = t.h(x, z)
+        d, f = hero_frame(x, z)
+        head = math.degrees(math.atan2(-1.0 - (g + 2.81), d))
+        base = math.degrees(math.atan2(-1.0 - g, d))
+        print('  %-22s ground %+6.2f  %4.1f m out  %4.1f %% across  '
+              'head %+5.2f deg  base %+5.2f deg  %.0f %% of frame height'
+              % (label, g, d, f, head, base,
+                 2.81 * px_per_metre(d) / 1080 * 100))
+    print('  the frame bottom edge is -9.47 deg, so a base below that is out')
+    print('  of shot; that coordinate stands on the ditch counterscarp')
+    print('  at -5.60 with its base 13.4 deg down — under the frame — and only')
+    print('  the head showing, growing out of nothing.')
+    print('  This build keeps all three constraints: on the track (5.9 m off the')
+    print('  centreline, 3.7 m off the running surface — a roadside cross), head')
+    print('  above the horizon, and clear of the gatehouse at 16 % and the SE')
+    print('  tower at 33 %.')
 
 
 if __name__ == '__main__':

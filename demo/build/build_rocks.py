@@ -33,6 +33,10 @@ import sys
 import bpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# art_props/ is a private copy of the blender-model toolkit and is not tracked
+# (see .gitignore); route.py, terrain.py and props_common.py are this project's
+# own and sit here beside the build scripts, so a clean checkout still builds.
+sys.path.append(HERE)
 sys.path.append(os.path.join(HERE, 'art_props'))
 
 import artconfig as cfg          # noqa: E402

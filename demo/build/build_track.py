@@ -36,6 +36,10 @@ import sys
 import bpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# art_props/ is a private copy of the blender-model toolkit and is not tracked
+# (see .gitignore); route.py, terrain.py and props_common.py are this project's
+# own and sit here beside the build scripts, so a clean checkout still builds.
+sys.path.append(HERE)
 sys.path.append(os.path.join(HERE, 'art_props'))
 
 import artconfig as cfg          # noqa: E402
@@ -203,8 +207,16 @@ def wall_mod_a():
     it was."""
     m = mats()['stone']
     parts = []
-    core = lib.box('wall_core', (WALL_L, 0.62, 0.92), taper=0.70,
-                   loc=(0, 0, 0.46))
+    # A PRISM, not box(taper=). box() tapers x and y together, so a module
+    # battered from 0.62 to 0.43 across also loses 30 % of its LENGTH at the
+    # top — and `wall_run.png` showed nine modules whose feet nearly touched
+    # and whose tops stood 0.6 m apart, which is the kit failing at the only
+    # thing a kit has to do. A prism holds the same section at every station
+    # along the run, so the two end faces are identical and the modules mate.
+    core = lib.prism('wall_core',
+                     [(-0.310, 0.000), (0.310, 0.000),
+                      (0.215, 0.920), (-0.215, 0.920)],
+                     WALL_L, plane='yz')
     lib.displace(core, _coursed(11, 5, 0.92), cuts=2)
     core.data.materials.append(m)
     parts.append(core)
@@ -237,8 +249,10 @@ def wall_mod_b():
     section at both ends, so it drops into a run of wall_mod_a."""
     m = mats()['stone']
     parts = []
-    core = lib.box('fallen_core', (WALL_L, 0.62, 0.46), taper=0.82,
-                   loc=(0, 0, 0.23))
+    core = lib.prism('fallen_core',
+                     [(-0.310, 0.000), (0.310, 0.000),
+                      (0.252, 0.460), (-0.252, 0.460)],
+                     WALL_L, plane='yz')
     lib.displace(core, _coursed(31, 3, 0.46), cuts=2)
     # Tumble the top: drop the crest unevenly so the run has no straight line
     # left in it.

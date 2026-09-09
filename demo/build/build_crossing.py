@@ -12,8 +12,8 @@
 # WORLD Blender coordinates and load at (0, 0, 0). Nothing instances them and
 # nothing has to solve an offset for them. The consequence is that the generic
 # contact sheet, which drops a ground plane at z=0, buries a bridge whose deck
-# is 4.1 m below the castle datum — so these are judged in art_props/
-# props_shots.py, which builds the real ditch out of terrain.json and puts the
+# is below the castle datum — so these are judged in demo/build/
+# props_shots.py, which loads the ground agent's own ground meshes and puts the
 # hero camera where section 4.1 puts it.
 #
 # LEVELS
@@ -28,6 +28,10 @@ import sys
 import bpy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# art_props/ is a private copy of the blender-model toolkit and is not tracked
+# (see .gitignore); route.py, terrain.py and props_common.py are this project's
+# own and sit here beside the build scripts, so a clean checkout still builds.
+sys.path.append(HERE)
 sys.path.append(os.path.join(HERE, 'art_props'))
 
 import artconfig as cfg          # noqa: E402
