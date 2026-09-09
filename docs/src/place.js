@@ -24,9 +24,31 @@ export function mulberry32(a) {
 
 // ------------------------------------------------------- world constants
 
-// §4.1 hero camera and §0.2 breach, the two ends of the protected sight line.
-export const HERO_EYE = [78.9, -1.0, 43.3];
+// The hero camera and §0.2's breach, the two ends of the protected sight line.
+// Kept in step with HERO in camera.js by hand — this module stays free of
+// three.js so the bake tool can run it under node, so it cannot import it.
+export const HERO_EYE = [87.24, -1.0, 48.82];
+export const HERO_AIM = [3.9, 11.3, -6.4];
 export const BREACH = [28.8, 1.4, -2.0];
+
+// The camera's ground-plane basis, so things can be placed by where they land
+// in the frame instead of by a coordinate that silently rots the next time the
+// camera moves.
+const _fx = HERO_AIM[0] - HERO_EYE[0], _fz = HERO_AIM[2] - HERO_EYE[2];
+const _fl = Math.hypot(_fx, _fz);
+export const HERO_FWD = [_fx / _fl, _fz / _fl];
+export const HERO_RIGHT = [-HERO_FWD[1], HERO_FWD[0]];
+
+// Half the frame width per metre of depth, at the 54 degree horizontal FOV.
+const HALF_W = Math.tan(27 * Math.PI / 180);
+
+/** `along` metres down the view axis, `across` metres right of it. */
+function fromCamera(along, across) {
+  return {
+    x: HERO_EYE[0] + HERO_FWD[0] * along + HERO_RIGHT[0] * across,
+    z: HERO_EYE[2] + HERO_FWD[1] * along + HERO_RIGHT[1] * across,
+  };
+}
 
 // §3 — wind is from the south-west, so everything that leans leans toward the
 // north-east. Consistency here is free and its absence is instantly legible.
@@ -115,10 +137,20 @@ const CAMERA_CLEAR = 18;
 // and the two by the cross should be placed once build_clutter.py exists and
 // the cross's final position is known — placing them beside an object that has
 // not been built yet would be guessing twice.
+//
+// The two repoussoir oaks are positioned by frame, not by coordinate: each
+// stands a couple of metres OUTSIDE its edge of the frame so only the upper
+// limbs come in, which is what §7 asks for ("its upper limbs break the
+// top-left corner and run out of frame") and is also what keeps them off the
+// ridge. The ridge is only visible in the outer 0-6 % and 89-100 % of the
+// frame — the castle covers the rest of the horizon — and it is the one thing
+// stopping the image reading as an object on a table, so a trunk parked in
+// either band would be blocking the only horizon there is. A bare oak's limbs
+// are mostly gaps and cross those bands high, above the horizon line at ~70 %.
 export const HERO_FIXED = {
   oak: [
-    { x: 58.4, z: 41.7, yaw: 2.35, scale: 1.22, tag: 'repoussoir, frame left' },
-    { x: 61.9, z: 14.7, yaw: 0.85, scale: 1.06, tag: 'repoussoir, frame right' },
+    { ...fromCamera(20, -(HALF_W * 20 + 2.0)), yaw: 2.35, scale: 1.22, tag: 'repoussoir, frame left' },
+    { ...fromCamera(30, +(HALF_W * 30 + 2.2)), yaw: 0.85, scale: 1.06, tag: 'repoussoir, frame right' },
   ],
 };
 

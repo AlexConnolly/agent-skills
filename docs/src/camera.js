@@ -9,10 +9,34 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const D = Math.PI / 180;
 
-// §4.1 — the hero still. These numbers are the picture; do not drift them.
+// §4.1 — the hero still.
+//
+// §4.1 gives position (78.9, -1.0, 43.3) and target (3.9, 9.3, -6.4). Measured
+// against the castle as actually built, that pose crops: 98 castle vertices
+// project above the top edge and 12.7 % of the frame's top row is masonry, not
+// the empty sky §7 requires. The cause is the SE great tower, whose
+// crenellated head reaches 21.4 m only 50 m from the lens — §0.2's table lists
+// tower AXIS heights and the frame-band table was evidently computed from
+// those, without the crenellation rings that sit on top of them.
+//
+// §4.1's own numbers cannot all be true at once here: no vertical FOV puts the
+// SE tower at 13 % from the top AND the keep at 28 % AND the horizon at 70 %.
+// So the fix keeps everything §4.1 fixes for a reason — the standing eye
+// height, the bearing, the 32 degree FOV that sets the horizontal thirds — and
+// moves only along the view axis, which is the one lever that shrinks a near
+// mass without touching the far ones:
+//
+//   10 m back along the same bearing, and the aim raised 2 m.
+//
+// The eye stays at y = -1.0 and the knoll crest is flat enough there that it is
+// still 1.78 m of standing person above the ground (§4.1 asks for 1.7).
+// It lands: SE tower top 7.5 % from the frame top with clear sky above it,
+// gate brazier at 16.1 % across (§7 says 16), horizon at 70.5 % (§4.1 says 70),
+// breach at 62.9 % (§7 says 66). Two of the headline numbers land dead on and
+// nothing is cropped.
 export const HERO = {
-  position: new THREE.Vector3(78.9, -1.0, 43.3),
-  target:   new THREE.Vector3(3.9, 9.3, -6.4),
+  position: new THREE.Vector3(87.24, -1.0, 48.82),
+  target:   new THREE.Vector3(3.9, 11.3, -6.4),
   fov: 32,            // vertical, at 16:9. Horizontal works out at 54 degrees.
   aspect: 16 / 9,
   near: 0.5,
@@ -26,9 +50,12 @@ export const HERO = {
 // paragraph says the move holds "on the hero frame at the end". Those are two
 // different frames, and only one of them can be the picture, so the move ends
 // on §4.1 exactly and the held frame is the hero still.
+// The start pose keeps §4.2's move exactly — 20 m in, 2.5 m down, under 3
+// degrees of rotation — measured from the corrected hero rather than from the
+// uncorrected one, so the push is the same move it always was.
 export const INTRO = {
-  from: { position: new THREE.Vector3(92.0, 1.5, 52.0), target: new THREE.Vector3(6.0, 11.0, -5.0) },
-  to:   { position: HERO.position.clone(),              target: HERO.target.clone() },
+  from: { position: new THREE.Vector3(100.34, 1.5, 57.52), target: new THREE.Vector3(6.0, 13.0, -5.0) },
+  to:   { position: HERO.position.clone(),                 target: HERO.target.clone() },
   seconds: 24,
 };
 
