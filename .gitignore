@@ -10,3 +10,4 @@ tests/.shots/
 demo/build/art/
 demo/build/**/shots/
 demo/build/**/models/
+demo/build/art_*/
