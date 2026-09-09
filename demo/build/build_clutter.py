@@ -103,7 +103,8 @@ def wayside_cross():
     # and its corners a tight one. One radius on all twelve edges is a large
     # part of what makes a modelled stone read as CG at arm's length, and this
     # thing is read at arm's length by the standards of this scene.
-    steps = [(0.92, 0.200, 0.000), (0.710, 0.190, 0.200), (0.530, 0.170, 0.390)]
+    steps = [(0.92, 0.215, 0.000), (0.715, 0.195, 0.215),
+             (0.535, 0.175, 0.410)]
     for i, (w, h, z) in enumerate(steps):
         s = lib.rounded_box('step%d' % i, (w, w * 0.98, h),
                             r_upright=0.018 + 0.006 * i,
@@ -123,13 +124,13 @@ def wayside_cross():
     #
     # revolve at 8 segments: an octagon is what a socket stone is, and the
     # chamfer from square to octagon is the join between it and the shaft.
-    sock = lib.revolve('socket', [(0.230, 0.545), (0.230, 0.700),
-                                  (0.168, 0.820), (0.150, 0.880),
-                                  (0.150, 0.545)],
+    sock = lib.revolve('socket', [(0.248, 0.570), (0.248, 0.745),
+                                  (0.184, 0.870), (0.166, 0.935),
+                                  (0.166, 0.570)],
                        segments=8, close_outline=True, smooth=False)
     sock.data.materials.append(m['stone'])
     parts.append(sock)
-    clip_corner(sock, 9, 0.78, 0.040, span=0.14)
+    clip_corner(sock, 9, 0.83, 0.042, span=0.15)
 
     # --- 3. the shaft: square at the foot, stopped to an octagon ------------
     #
@@ -138,14 +139,14 @@ def wayside_cross():
     # visible event at 90 px/m rather than a smooth turned profile. The first
     # version was one revolve all the way down and `silhouette.png` showed a
     # lamp standard.
-    foot = lib.box('shaft_foot', (0.255, 0.255, 0.210), loc=(0, 0, 0.960))
+    foot = lib.box('shaft_foot', (0.318, 0.318, 0.245), loc=(0, 0, 1.020))
     foot.data.materials.append(m['stone'])
     parts.append(foot)
     shaft = lib.revolve('shaft',
-                        [(0.000, 0.900),
-                         (0.128, 0.900), (0.117, 1.115),
-                         (0.111, 1.600), (0.104, 2.240),
-                         (0.000, 2.250)],
+                        [(0.000, 0.940),
+                         (0.160, 0.940), (0.147, 1.215),
+                         (0.139, 1.720), (0.130, 2.270),
+                         (0.000, 2.280)],
                         segments=8, close_outline=False, smooth=False)
     shaft.data.materials.append(m['stone'])
     parts.append(shaft)
@@ -160,20 +161,20 @@ def wayside_cross():
     # read as a finial in `silhouette.png` — this whole object exists to be
     # recognised as a CROSS in one glance from 21 m, and a head that has to be
     # explained has failed.
-    t = 0.105          # half width of the limb
-    arm_z0, arm_z1 = 2.340, 2.585
+    t = 0.128          # half width of the limb
+    arm_z0, arm_z1 = 2.300, 2.566
     outline = [
-        (-t, 2.120), (t, 2.120),                      # neck, into the shaft
-        (t, arm_z0), (0.360, arm_z0 + 0.010),         # right arm out
-        (0.358, arm_z1), (t, arm_z1),
+        (-t, 2.110), (t, 2.110),                      # neck, into the shaft
+        (t, arm_z0), (0.452, arm_z0 + 0.014),         # right arm out
+        (0.446, arm_z1), (t, arm_z1),
         (t, 2.800), (-t, 2.792),                      # the head above the arms
         (-t, arm_z1),
-        (-0.196, arm_z1 - 0.030),                     # LEFT ARM BROKEN SHORT:
-        (-0.221, arm_z0 + 0.098),                     # a ragged fracture, not
-        (-0.168, arm_z0 + 0.030),                     # a sawn end
+        (-0.268, arm_z1 - 0.038),                     # LEFT ARM BROKEN SHORT:
+        (-0.305, arm_z0 + 0.118),                     # a ragged fracture, not
+        (-0.232, arm_z0 + 0.036),                     # a sawn end
         (-t, arm_z0),
     ]
-    head = lib.prism('head', outline, 0.190, plane='xz', smooth=False)
+    head = lib.prism('head', outline, 0.228, plane='xz', smooth=False)
     head.data.materials.append(m['stone'])
     parts.append(head)
 
@@ -182,16 +183,18 @@ def wayside_cross():
     # The repair is the story, and it has to read as a repair rather than as a
     # moulding: one band with the two ends lapped and riveted proud on the
     # front, sitting on the joint where the head was set back on the shaft.
-    for j, (dx, dy, sx, sy) in enumerate(((0.0, 0.118, 0.250, 0.024),
-                                          (0.0, -0.118, 0.250, 0.024),
-                                          (0.118, 0.0, 0.024, 0.250),
-                                          (-0.118, 0.0, 0.024, 0.250))):
-        band = lib.box('strap%d' % j, (sx, sy, 0.070), loc=(dx, dy, 2.185))
+    for j, (dx, dy, sx, sy) in enumerate(((0.0, 0.142, 0.304, 0.028),
+                                          (0.0, -0.142, 0.304, 0.028),
+                                          (0.142, 0.0, 0.028, 0.304),
+                                          (-0.142, 0.0, 0.028, 0.304))):
+        band = lib.box('strap%d' % j, (sx, sy, 0.082), loc=(dx, dy, 2.160))
         band.data.materials.append(m['iron'])
         parts.append(band)
-    lug = lib.box('strap_lug', (0.090, 0.040, 0.130), loc=(0.0, 0.132, 2.185))
-    lug.data.materials.append(m['iron'])
-    parts.append(lug)
+    for j, (dx, dy, sx, sy) in enumerate(((0.0, 0.160, 0.118, 0.048),
+                                          (0.160, 0.0, 0.048, 0.118))):
+        lug = lib.box('strap_lug%d' % j, (sx, sy, 0.160), loc=(dx, dy, 2.160))
+        lug.data.materials.append(m['iron'])
+        parts.append(lug)
 
     obj = lib.merge_into('wayside_cross', parts)
 

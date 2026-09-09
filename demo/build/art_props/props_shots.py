@@ -48,7 +48,28 @@ GROUPS = {
                  'track_ribbon'],
     'track': ['track_ribbon', 'causeway_apron'],
     'all': ['ditch_water', 'ditch_bridge', 'causeway_apron', 'track_ribbon'],
+    'clutter': ['ditch_water', 'ditch_bridge', 'track_ribbon',
+                'causeway_apron'],
 }
+
+# Where the group 8 pieces go, Three.js, for the in-place check. The wayside
+# cross's position is argued in build_clutter.py; the rest are indicative and
+# the scene's own placement.json is the authority.
+#   (model, x, z, yaw about Blender Z in degrees, roll in degrees, y or None)
+CLUTTER = [
+    ('wayside_cross', 60.90, 37.80, 56.5, 0.0, None),
+    ('carriers_cart', 66.30, 32.60, -26.0, 0.0, None),
+    ('carriers_cart', 55.20, 40.40, 128.0, 96.0, None),      # tipped
+    ('woodstack', 51.60, 41.80, 40.0, 0.0, None),
+    ('tether_post', 63.90, 34.10, 0.0, 0.0, None),
+    ('tether_post', 64.60, 35.60, 0.0, 0.0, None),
+    ('hay_heap', 44.00, 47.00, 20.0, 0.0, None),
+    ('rock_outcrop_a', 47.5, 20.0, 70.0, 0.0, None),
+    ('boulder_a', 69.0, 30.0, 15.0, 0.0, None),
+    ('boulder_b', 71.5, 36.5, 200.0, 0.0, None),
+    ('scree_run', 52.0, 22.5, 55.0, 0.0, None),
+    ('wall_mod_a', None, None, 0, 0, None),
+]
 
 
 def argv():
@@ -129,6 +150,25 @@ def main():
     for name in GROUPS.get(group, GROUPS['all']):
         load(name)
 
+    if group == 'clutter':
+        from terrain import Terrain
+        tr = Terrain()
+        for (name, x, z, yaw, roll, y) in CLUTTER:
+            if x is None:
+                # a 9-module run of the wall kit, on the pitch, flipped
+                # alternately: the only way to see whether the kit tiles.
+                for i in range(9):
+                    wx = 46.0 + i * 2.00 * 0.62
+                    wz = 50.0 + i * 2.00 * 0.78
+                    for o in load(name):
+                        o.location = cfg.to_blender(wx, tr.h(wx, wz) - 0.05, wz)
+                        o.rotation_euler = (0, 0, math.radians(
+                            -51.4 + (180 if i % 2 else 0) + (1.5 if i % 3 else -1.2)))
+                continue
+            for o in load(name):
+                o.location = cfg.to_blender(x, tr.h(x, z) if y is None else y, z)
+                o.rotation_euler = (math.radians(roll), 0.0, math.radians(yaw))
+
     # Two figures: one on the bridge deck, one on the knoll where the camera
     # stands, so the scale of the crossing can be read against a person from
     # the same frame that judges its position.
@@ -180,6 +220,12 @@ def main():
     three_to_blender_cam((82.0, 2.6, 47.0), (58.0, -3.0, 30.5), 35.33,
                          1600, 900)
     shots.render(os.path.join(out, 'track_down.png'), 1600, 900)
+
+    # 6b. the near foreground at the real framing: the wayside cross against
+    #     the horizon, which is the shot this whole group is judged on.
+    three_to_blender_cam((78.9, -1.0, 43.3), (55.0, 2.0, 30.0), 60.0,
+                         1600, 900)
+    shots.render(os.path.join(out, 'foreground.png'), 1600, 900)
 
     # 6. straight down on the road where it passes the lens, for the ruts
     three_to_blender_cam((74.0, 14.0, 39.0), (74.0, -2.7, 39.0), 50.0,
